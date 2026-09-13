@@ -3,6 +3,7 @@ import { clamp, damp, dampAngle } from '../core/MathUtils.js';
 import type { GameCtx } from '../core/GameTypes.js';
 import { Ev } from '../core/EventBus.js';
 import { CULTIST_LOOKS, HumanoidFactory, addCap, type Humanoid, type HumanoidLook } from './Humanoid.js';
+import { makeBroom, makeGuitar } from '../world/HandProps.js';
 import type { RayHit } from '../systems/Ballistics.js';
 import { HALL } from '../world/Layout.js';
 
@@ -28,7 +29,7 @@ export type CultistState =
   /** 倒地。 */
   | 'down';
 
-export type CultistRole = 'follower' | 'elder' | 'idol' | 'police';
+export type CultistRole = 'follower' | 'elder' | 'idol' | 'police' | 'sweeper' | 'singer';
 
 export interface CultistSpawn {
   x: number;
@@ -138,7 +139,16 @@ export class Cultist {
     if (this.state === 'seated') this.humanoid.sit();
     if (spawn.hidden) this.humanoid.setVisible(false);
     this.hidden = spawn.hidden ?? false;
+
+    // 手里拿着的东西：门口那把扫帚，礼厅里那把吉他
+    if (mats) {
+      if (this.role === 'sweeper') this.humanoid.hold('torso', makeBroom(mats));
+      if (this.role === 'singer') this.humanoid.hold('torso', makeGuitar(mats));
+    }
   }
+
+  /** 扫地与弹唱各自的相位。 */
+  private idlePhase = Math.random() * 6.28;
 
   /** 剧本点名时才出现（警察）。 */
   hidden = false;
@@ -271,6 +281,27 @@ export class Cultist {
     if (this.role === 'police') {
       this.humanoid.root.position.copy(this.position);
       this.humanoid.root.rotation.set(0, this.seatYaw, 0);
+      return;
+    }
+
+    // 扫地的与弹吉他唱歌的：在事没闹大之前，他们一直在做自己的事。
+    // 这正是"新心灵舍"最日常、也最让人不安的地方——你进门的时候，
+    // 有人在扫地，有人在唱歌，没有人抬头。
+    if (
+      (this.role === 'sweeper' || this.role === 'singer') &&
+      (this.state === 'frozen' || this.state === 'seated')
+    ) {
+      this.idlePhase += dt * (this.role === 'singer' ? 3.1 : 0.85);
+      this.humanoid.root.position.copy(this.position);
+      this.humanoid.root.rotation.set(0, this.seatYaw, 0);
+      if (this.role === 'singer') this.humanoid.strum(this.idlePhase);
+      else this.humanoid.sweep(this.idlePhase);
+
+      this.speechTimer -= dt;
+      if (this.speechTimer <= 0) {
+        this.speechTimer = (this.role === 'singer' ? 4.5 : 7) + Math.random() * 6;
+        this.speak(game);
+      }
       return;
     }
 

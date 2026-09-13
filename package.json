@@ -10,6 +10,8 @@
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview --port 4173 --strictPort",
     "verify": "node tools/verify.mjs",
+    "entry": "node tools/entry.mjs",
+    "look": "node tools/look.mjs",
     "play": "node tools/playthrough.mjs",
     "shots": "node tools/shots.mjs",
     "inspect": "node tools/inspect.mjs"

@@ -248,6 +248,22 @@ export function buildHallProps(ctx: BuildCtx): PropHandles {
     h.lights.push(l);
   }
 
+  // ── 讲台正上方打下来的一束光 ─────────────────────────
+  // 尊者站在台口，光从他头顶下来，把整个礼厅的注意力钉在他身上。
+  const idolSpot = new PointLight(0xffe2b4, 3.4, 13, 2);
+  idolSpot.position.set(0, stageTop + 3.4, -13.4);
+  ctx.light(idolSpot);
+  h.lights.push(idolSpot);
+  // 灯罩（让这束光看起来有来源）
+  b.cyl(0.3, 0.22, 0.24, M.lacquerDark, 0, stageTop + 3.7, -13.4, 8);
+  b.cyl(0.1, 0.1, 0.5, M.muzzle, 0, stageTop + 3.45, -13.4, 6);
+  ctx.animate((_dt, t) => {
+    idolSpot.intensity = 3.3 + Math.sin(t * 0.7) * 0.18;
+  });
+
+  // 讲台前的一小块地毯，把他从木地板上托起来
+  b.box(3.6, 0.02, 2.6, M.lacquerDark, 0, stageTop + 0.012, -13.9);
+
   // 供台前的长明灯
   b.cyl(0.14, 0.17, 0.26, M.lacquer, -2.6, stageTop + 0.13, -16.0, 8);
   b.cyl(0.05, 0.05, 0.1, M.muzzle, -2.6, stageTop + 0.3, -16.0, 6);

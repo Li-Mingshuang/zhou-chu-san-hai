@@ -81,6 +81,7 @@ export class Game implements GameCtx {
   private started = false;
   private finished = false;
   private lockEverHeld = false;
+  private lockNoteShown = false;
   private lastFrame = 0;
   private rafId = 0;
   private frameCount = 0;
@@ -91,6 +92,8 @@ export class Game implements GameCtx {
   private preset: LightPresetId = 'yard';
   /** 分镜模式：加载后摆好姿势就冻结，只渲染。 */
   private frozen = false;
+  /** HUD 的脏检查键，避免每帧重排 DOM。 */
+  private hudKey = '';
   /** 节拍流水账（调试与验收用）。 */
   readonly beatLog: Array<{ id: string; t: number; x: number; y: number; z: number }> = [];
 
@@ -121,6 +124,11 @@ export class Game implements GameCtx {
     this.sun.target = this.sunTarget;
 
     this.input = new Input(canvas, (locked) => this.onLockChange(locked));
+    // 浏览器不给指针锁时，别一直举着"点击画面继续"——那时它永远不会成功。
+    this.input.onLockError = () => {
+      this.ui.showLockHint(false);
+      this.inputFailedNote();
+    };
     // 镜头离开电影模式时必须把控制权还回去，否则过场一放完人就动不了了。
     this.director.onModeChange = () => this.applyInputEnabled();
 
@@ -376,22 +384,47 @@ export class Game implements GameCtx {
   private async startRun(): Promise<void> {
     if (this.started) return;
     this.started = true;
-    // 浏览器只在用户手势里允许启动音频；headless 或自动开场时
-    // ctx.resume() 会一直挂着不兑现，所以必须给它一个上限。
-    await Promise.race([
-      this.audio.resume().catch(() => false),
-      new Promise<boolean>((r) => setTimeout(() => r(false), 1200)),
-    ]);
-    this.audio.setVolume(this.settings.data.volume);
+
+    // ⚠ 这一段必须留在第一个 await 之前，而且必须是同步的。
+    // 指针锁与音频都只在"用户手势"里被允许，而 startRun 是从按钮的 click
+    // 回调里同步调用的——只要中间插一个 await，手势窗口就可能已经过期，
+    // 结果就是拿不到指针锁，进而鼠标转不了视角、左键打不出枪。
+    this.input.requestLock();
     this.ui.clearOverlay();
-    this.ui.hideOverlay();
     this.ui.setHudVisible(true);
     this.ui.setCleansed(this.cleansedValue, true);
+    this.audio.resume().catch(() => false);
     this.setPaused(false);
-    this.input.requestLock();
     this.runner.start(this.params.beat ?? 0, this);
     this.lastFrame = performance.now();
     if (!this.rafId) this.rafId = requestAnimationFrame(this.frame);
+    this.updateLockHint();
+
+    // 音量可以慢慢设；浏览器不给播也不影响玩
+    const ok = await Promise.race([
+      Promise.resolve(true),
+      new Promise<boolean>((r) => setTimeout(() => r(false), 1200)),
+    ]);
+    if (ok) this.audio.setVolume(this.settings.data.volume);
+  }
+
+  /** 没拿到指针锁的时候给一句提示，否则玩家只会觉得"鼠标坏了"。 */
+  private updateLockHint(): void {
+    const show =
+      this.started &&
+      !this.finished &&
+      !this.paused &&
+      !this.params.scripted &&
+      !this.input.locked &&
+      !this.input.lockFailed;
+    this.ui.showLockHint(show);
+  }
+
+  /** 指针锁用不了时，只提一次：鼠标视角照常，只是光标不会藏起来。 */
+  private inputFailedNote(): void {
+    if (this.lockNoteShown) return;
+    this.lockNoteShown = true;
+    console.info('[input] 指针锁不可用，已降级为不锁也能玩（鼠标视角与开火照常）。');
   }
 
   private restart(): void {
@@ -416,11 +449,13 @@ export class Game implements GameCtx {
       this.ui.clearOverlay();
       this.audio.setVolume(this.settings.data.volume);
     }
+    this.updateLockHint();
   }
 
   private onLockChange(locked: boolean): void {
     if (this.params.scripted) return;
     if (!this.started || this.finished) return;
+    this.updateLockHint();
     if (locked) {
       this.lockEverHeld = true;
       return;
@@ -484,6 +519,25 @@ export class Game implements GameCtx {
     }
   }
 
+  /**
+   * 把 HUD 的其余部分接上。
+   *
+   * 之前 setLetterbox / setCrosshair / setAmmo / setCinematic 一个都没被调用过——
+   * 于是准星从来没出现过、弹药从来没显示过。这些都是"没接线的显示"，
+   * 画面不报错，但玩家手里是一把没有准星、也不知道还剩几发的枪。
+   */
+  private syncHud(): void {
+    const cinematic = this.director.mode === 'cinematic';
+    const drawn = this.pistol.drawn && !cinematic;
+    const key = `${cinematic ? 1 : 0}${drawn ? 1 : 0}${this.pistol.aiming ? 1 : 0}${this.pistol.ammo}`;
+    if (key === this.hudKey) return;
+    this.hudKey = key;
+    this.ui.setCinematic(cinematic);
+    this.ui.setLetterbox(cinematic && this.settings.data.letterbox);
+    this.ui.setCrosshair(drawn, this.pistol.aiming);
+    this.ui.setAmmo(this.pistol.ammo, this.pistol.capacity, drawn);
+  }
+
   private updateAvatar(dt: number): void {
     const mode = this.director.mode;
     let visible = mode === 'topdown' || mode === 'side';
@@ -535,12 +589,15 @@ export class Game implements GameCtx {
     }
 
     if (input.justPressed('fire')) {
-      if (!this.pistol.enabled) {
-        // 还没到那一刻
-        return;
+      if (!this.pistol.enabled) return;
+      if (!this.pistol.drawn) {
+        // 左键就是"开枪"。第一下先把枪拔出来，然后同一帧里把这一枪打出去——
+        // 分成两次点击的话，玩家只会觉得"点了没反应"。
+        this.pistol.setDrawn(true, this);
+        this.pistol.tryFire(this);
+      } else {
+        this.pistol.tryFire(this);
       }
-      if (!this.pistol.drawn) this.pistol.setDrawn(true, this);
-      else this.pistol.tryFire(this);
     }
 
     if (input.justPressed('aim')) this.pistol.setAiming(true, this);
@@ -586,6 +643,7 @@ export class Game implements GameCtx {
     this.runner.update(dt, this);
     this.director.update(dt, this);
     this.updateAvatar(dt);
+    this.syncHud();
 
     for (const fn of this.island?.animators ?? []) fn(dt, this.elapsedTime);
 

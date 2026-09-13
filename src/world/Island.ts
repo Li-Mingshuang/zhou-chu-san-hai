@@ -159,6 +159,47 @@ export function buildIsland(mats: MatLib, rnd: Rng): Island {
     },
   });
 
+  // 大门口扫地的人。你进门的时候他在扫地，没有抬头。
+  spawns.push({
+    x: 4.4,
+    z: 23.4,
+    yaw: -Math.PI * 0.62,
+    role: 'sweeper',
+    name: '扫地的',
+    seated: false,
+    courage: 0.9,
+    lookIndex: 3,
+    scale: 0.98,
+    lines: {
+      frozen: ['……', '尘是扫不完的。', '扫地就是扫心。'],
+      flee: ['别过来。'],
+    },
+  });
+
+  // 礼厅里弹吉他唱歌的人。整场戏的背景音就是他。
+  spawns.push({
+    x: -8.6,
+    z: -11.6,
+    yaw: -0.5,
+    y: PLATEAU_Y + 0.5,
+    role: 'singer',
+    name: '唱歌的',
+    seated: true,
+    courage: 0.5,
+    lookIndex: 0,
+    scale: 0.96,
+    reactionOffset: 1.2,
+    lines: {
+      frozen: [
+        '天地为证，放下就轻了。',
+        '跟着我唱，不要想。',
+        '念到心里什么都不剩。',
+        '感谢天地。',
+      ],
+      flee: ['我不唱了。'],
+    },
+  });
+
   // 礼厅：每两排坐四个人，都靠过道
   for (const seat of hall.seats) {
     spawns.push({
@@ -173,10 +214,11 @@ export function buildIsland(mats: MatLib, rnd: Rng): Island {
     });
   }
 
-  // 尊者：站在讲台上。不坐、不跑、不劝。他只是看着你。
+  // 尊者：站在讲台最前沿。不坐、不跑、不劝。他只是看着你。
+  // 位置故意压到台口，正对大门——从门口走进来的第一眼就该是他。
   spawns.push({
     x: 0,
-    z: -15.2,
+    z: -13.6,
     y: PLATEAU_Y + 0.5,
     yaw: 0,
     role: 'idol',
@@ -184,7 +226,7 @@ export function buildIsland(mats: MatLib, rnd: Rng): Island {
     seated: false,
     courage: 1,
     lookIndex: 2,
-    scale: 1.03,
+    scale: 1.08,
     lines: {
       frozen: [
         '你也是来求道的。',

@@ -331,6 +331,16 @@ body {
   pointer-events: none;
 }
 
+/* 三张卡各自的显隐。
+   注意：这里必须显式写规则——只用 JS 挂 .hidden 类是没有用的，
+   因为 #title-card 之类的元素本来就有布局，缺了这条规则它会一直留在画面上，
+   而 #overlay 变透明之后就是"标题浮在游戏上面不消失"。 */
+#title-card.hidden,
+#pause-card.hidden,
+#ending-card.hidden {
+  display: none;
+}
+
 #overlay.clear {
   background: transparent;
   pointer-events: none;

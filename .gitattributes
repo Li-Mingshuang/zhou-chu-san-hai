@@ -1,0 +1,7 @@
+# 统一换行，避免 Windows 上反复出现 "LF will be replaced by CRLF" 警告
+* text=auto eol=lf
+
+# 二进制
+*.png binary
+*.jpg binary
+*.woff2 binary

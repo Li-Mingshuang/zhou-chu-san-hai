@@ -243,6 +243,45 @@ export class Humanoid {
     this.torso.rotation.x = 0.1 * a;
   }
 
+  /** 扫地。phase 由外部按时间推进，慢一点更像在磨时间。 */
+  sweep(phase: number): void {
+    const s = Math.sin(phase);
+    this.hips.position.y = HIP_Y;
+    this.hips.rotation.set(0, s * 0.12, 0);
+    this.torso.rotation.set(0.34, s * 0.3, s * 0.05);
+    this.head.rotation.set(0.36, -s * 0.1, 0);
+    this.armL.rotation.set(-1.02, 0, 0.24 + s * 0.08);
+    this.armR.rotation.set(-1.16, 0, -0.24 - s * 0.08);
+    if (this.legL && this.legR) {
+      this.legL.rotation.set(-0.12, 0, 0.06);
+      this.legR.rotation.set(0.1, 0, -0.06);
+    }
+  }
+
+  /** 弹吉他唱歌：左手按住，右手扫弦，头随节拍点。 */
+  strum(phase: number): void {
+    const s = Math.sin(phase);
+    const fast = Math.sin(phase * 3.1);
+    this.hips.position.y = HIP_Y * 0.56;
+    this.hips.rotation.set(0, s * 0.05, 0);
+    this.torso.rotation.set(0.12 + s * 0.04, s * 0.07, 0);
+    this.head.rotation.set(-0.1 + fast * 0.07, -s * 0.12, 0);
+    this.armL.rotation.set(-1.32 + s * 0.06, 0, 0.3);
+    this.armR.rotation.set(-0.92 + fast * 0.42, 0, -0.32 - fast * 0.08);
+    if (this.legL && this.legR) {
+      this.legL.rotation.set(-1.4, 0, 0.1);
+      this.legR.rotation.set(-1.4, 0, -0.1);
+    }
+  }
+
+  /** 把一件道具挂到某个关节上（扫帚、吉他）。 */
+  hold(parent: 'torso' | 'head' | 'armL' | 'armR', prop: Object3D): Object3D {
+    const joint =
+      parent === 'head' ? this.head : parent === 'armL' ? this.armL : parent === 'armR' ? this.armR : this.torso;
+    joint.add(prop);
+    return prop;
+  }
+
   /** 复位到站立。 */
   reset(): void {
     this.root.rotation.set(0, this.root.rotation.y, 0);

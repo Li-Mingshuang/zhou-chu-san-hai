@@ -241,8 +241,8 @@ export class Ui {
   /** 收起暂停卡；只藏卡片会留下一个不透明的空罩子，所以顺带淡出覆盖层。 */
   hidePause(): void {
     const card = this.pauseCard;
-    if (!card || card.classList.contains('hidden')) return;
-    card.classList.add('hidden');
+    if (!card || !this.cardVisible(card)) return;
+    this.setCardVisible(card, false);
     this.hideOverlay();
   }
 
@@ -283,8 +283,26 @@ export class Ui {
   private hideCards(keep: HTMLElement | null): void {
     const cards: Array<HTMLElement | null> = [this.titleCard, this.pauseCard, this.endingCard];
     for (const card of cards) {
-      if (card) card.classList.toggle('hidden', card !== keep);
+      if (card) this.setCardVisible(card, card === keep);
     }
+  }
+
+  /**
+   * 卡片的显隐：既挂 .hidden 类，也直接写内联 display。
+   *
+   * 只挂类是不够的——样式表里漏掉一条 `.hidden` 规则时，元素照样占着版面，
+   * 而 #overlay 已经透明，结果就是"标题浮在游戏画面上不消失"。
+   * 这类失败模式在自动截图里看不出来，只有真点了开始按钮才会遇到。
+   */
+  private setCardVisible(card: HTMLElement, on: boolean): void {
+    card.classList.toggle('hidden', !on);
+    card.style.display = on ? '' : 'none';
+    card.setAttribute('aria-hidden', on ? 'false' : 'true');
+  }
+
+  /** 某张卡现在是不是真的看得见。 */
+  private cardVisible(card: HTMLElement): boolean {
+    return card.style.display !== 'none' && !card.classList.contains('hidden');
   }
 
   /** #ending-body 是普通 <p>，\n 不换行，拆成文本节点 + <br>（不动 style.css）。 */

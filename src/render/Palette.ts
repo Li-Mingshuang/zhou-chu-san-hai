@@ -100,13 +100,13 @@ export const LIGHT_PRESETS = {
   hall: {
     hemiSky: 0x4a3a24,
     hemiGround: 0x241a10,
-    hemiIntensity: 0.64,
+    hemiIntensity: 0.82,
     sunColor: 0xe3b055,
-    sunIntensity: 0.82,
+    sunIntensity: 1.0,
     sunDir: [0.25, 0.9, 0.35],
     fog: 0x1d1509,
-    fogDensity: 0.026,
-    exposure: 1.06,
+    fogDensity: 0.024,
+    exposure: 1.18,
     saturation: 1,
   },
   /** 前院：白天阴天，发灰。 */

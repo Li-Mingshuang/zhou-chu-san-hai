@@ -11,6 +11,7 @@
 import { readFileSync, readdirSync } from 'node:fs';
 import { inflateSync } from 'node:zlib';
 import { join } from 'node:path';
+import { pathToFileURL } from 'node:url';
 
 const SIG = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a];
 
@@ -243,19 +244,27 @@ function report(file, cols) {
   console.log(verdict.join('\n'));
 }
 
-const args = process.argv.slice(2);
-const cols = Number(args.find((a) => /^\d+$/.test(a)) ?? 76);
-const files = args.filter((a) => a.endsWith('.png'));
+// 只有被当作命令直接跑的时候才执行报告；
+// 被别的工具 import（例如 look.mjs 要借用解码器）时不要乱打印。
+const isMain =
+  process.argv[1] !== undefined &&
+  import.meta.url === pathToFileURL(process.argv[1]).href;
 
-if (!files.length) {
-  const dir = 'shots';
-  try {
-    for (const f of readdirSync(dir).filter((f) => f.endsWith('.png')).sort()) {
-      report(join(dir, f), cols);
+if (isMain) {
+  const args = process.argv.slice(2);
+  const cols = Number(args.find((a) => /^\d+$/.test(a)) ?? 76);
+  const files = args.filter((a) => a.endsWith('.png'));
+
+  if (!files.length) {
+    const dir = 'shots';
+    try {
+      for (const f of readdirSync(dir).filter((f) => f.endsWith('.png')).sort()) {
+        report(join(dir, f), cols);
+      }
+    } catch {
+      console.error('用法：node tools/inspect.mjs shots/xxx.png [列数]');
     }
-  } catch {
-    console.error('用法：node tools/inspect.mjs shots/xxx.png [列数]');
+  } else {
+    for (const f of files) report(f, cols);
   }
-} else {
-  for (const f of files) report(f, cols);
 }

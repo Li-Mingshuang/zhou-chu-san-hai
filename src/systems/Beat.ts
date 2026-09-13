@@ -1,4 +1,4 @@
-﻿import type { GameCtx } from '../core/GameTypes.js';
+import type { GameCtx } from '../core/GameTypes.js';
 
 /**
  * 节拍（Beat）。

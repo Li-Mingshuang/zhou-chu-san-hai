@@ -239,7 +239,7 @@ function beatRitual(): Beat {
       g.audio.setAmbience('hall', 3);
       g.audio.setSpace('hall');
       g.objective('走进礼厅');
-      g.renderer.setTuning({ exposure: 1.06, saturation: 0.88 });
+      g.renderer.setTuning({ exposure: 1.16, saturation: 0.88 });
     },
     update(dt, g) {
       switch (phase) {
@@ -445,7 +445,7 @@ function beatReturn(): Beat {
       g.audio.setAmbience('hall', 2.5);
       g.audio.setSpace('hall');
       g.objective('穿过院子回到礼厅');
-      g.renderer.setTuning({ exposure: 1.04, saturation: 0.84 });
+      g.renderer.setTuning({ exposure: 1.14, saturation: 0.84 });
     },
     update(dt, g) {
       seq.update(dt, g);
@@ -507,7 +507,7 @@ function beatReckoning(): Beat {
       g.player.yaw = 0.02;
       g.audio.setAmbience('chant', 3);
       g.audio.setSpace('hall');
-      g.renderer.setTuning({ exposure: 1.02, saturation: 0.8 });
+      g.renderer.setTuning({ exposure: 1.14, saturation: 0.82 });
       g.ui.setCleansed(g.cleansed, true);
       g.objective('做出你的决定');
       g.say('前一排有人挪了一下。木头响了一声。', { narr: true });

@@ -45,8 +45,21 @@ export class Input {
   /** 分镜模式：不采集任何输入。 */
   enabled = true;
   locked = false;
+  /**
+   * 浏览器拒绝给指针锁（headless、某些企业策略、或非聚焦的窗口）。
+   * 这时不能让游戏变成"鼠标转不了视角、左键打不出枪"——
+   * 退化成不锁也能玩：鼠标位移照样采集，按键照样响应。
+   */
+  lockFailed = false;
+  /** 指针锁失败时的通知（用来把"点击画面继续"的提示收起来）。 */
+  onLockError: (() => void) | null = null;
   /** 最近一次按键（用于"按任意键"）。 */
   anyKey = false;
+
+  /** 鼠标现在算不算"有效"——锁住了，或者锁不上但已降级。 */
+  get mouseActive(): boolean {
+    return this.enabled && (this.locked || this.lockFailed);
+  }
 
   private disposers: Array<() => void> = [];
 
@@ -77,7 +90,13 @@ export class Input {
       this.released.add(a);
     };
     const md = (e: MouseEvent): void => {
-      if (!this.locked) return;
+      // 没拿到指针锁时，左键先用来夺回锁——而不是被无声地丢掉。
+      // 之前这里直接 return，于是"点了没反应"（打不出枪）成了一种默认状态。
+      if (!this.locked && !this.lockFailed) {
+        if (this.enabled && e.button === 0) this.requestLock();
+        return;
+      }
+      if (!this.enabled) return;
       if (e.button === 0) {
         this.held.add('fire');
         this.pressed.add('fire');
@@ -98,14 +117,21 @@ export class Input {
       }
     };
     const mm = (e: MouseEvent): void => {
-      if (!this.locked || !this.enabled) return;
+      if (!this.mouseActive) return;
       this.mouseDX += e.movementX;
       this.mouseDY += e.movementY;
     };
     const ctx = (e: Event): void => e.preventDefault();
     const plc = (): void => {
       this.locked = document.pointerLockElement === this.canvas;
+      if (this.locked) this.lockFailed = false;
       this.onLockChange?.(this.locked);
+    };
+    const ple = (): void => {
+      // 浏览器不给锁。降级：鼠标照常可用，只是没有"锁住光标"这个便利。
+      if (this.locked) return;
+      this.lockFailed = true;
+      this.onLockError?.();
     };
     const blur = (): void => {
       this.held.clear();
@@ -119,6 +145,7 @@ export class Input {
     window.addEventListener('blur', blur);
     this.canvas.addEventListener('contextmenu', ctx);
     document.addEventListener('pointerlockchange', plc);
+    document.addEventListener('pointerlockerror', ple);
 
     this.disposers.push(() => {
       window.removeEventListener('keydown', kd);
@@ -129,11 +156,12 @@ export class Input {
       window.removeEventListener('blur', blur);
       this.canvas.removeEventListener('contextmenu', ctx);
       document.removeEventListener('pointerlockchange', plc);
+      document.removeEventListener('pointerlockerror', ple);
     });
   }
 
   requestLock(): void {
-    if (!this.enabled || this.locked) return;
+    if (!this.enabled || this.locked || this.lockFailed) return;
     // 新版 Chrome 返回 Promise，旧版返回 undefined；不接住会变成未处理拒绝。
     const p = this.canvas.requestPointerLock() as unknown as Promise<void> | undefined;
     if (p && typeof p.catch === 'function') p.catch(() => undefined);

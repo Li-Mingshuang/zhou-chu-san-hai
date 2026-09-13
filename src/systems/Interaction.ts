@@ -1,4 +1,4 @@
-﻿import { Vector3, type Object3D } from 'three';
+import { Vector3, type Object3D } from 'three';
 import type { GameCtx } from '../core/GameTypes.js';
 
 /**
