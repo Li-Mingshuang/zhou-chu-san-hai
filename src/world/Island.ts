@@ -5,6 +5,7 @@ import type { Rng } from '../core/MathUtils.js';
 import { Level } from './Collision.js';
 import { createMatKeys, type BuildCtx, type MatKeys } from './ctx.js';
 import { PLATEAU_Y, VAULT, terrainHeight } from './Layout.js';
+import { POLICE_LOOK } from '../entities/Humanoid.js';
 import { buildBackdrop, buildSea, buildSurf, buildTerrain } from './Terrain.js';
 import { buildDock, buildNature } from './Nature.js';
 import { buildHallShell, buildStairs, buildVaultShell, buildYardShell } from './Shell.js';
@@ -17,6 +18,7 @@ import {
 } from './Props.js';
 import type { CultistSpawn } from '../entities/Cultist.js';
 import { interactable, type Interactable } from '../systems/Interaction.js';
+import { EXEC, buildExecutionGround } from './Execution.js';
 
 /**
  * 把整座岛装起来。
@@ -102,6 +104,9 @@ export function buildIsland(mats: MatLib, rnd: Rng): Island {
   buildVaultShell(ctx);
   buildYardShell(ctx);
   buildStairs(ctx);
+
+  // ── 刑场（岛外的一块孤立场地，靠雾与硬切把它和岛分开） ──
+  buildExecutionGround(ctx);
 
   // ── 道具与叙事物 ─────────────────────────────────────
   const hall = buildHallProps(ctx);
@@ -189,6 +194,57 @@ export function buildIsland(mats: MatLib, rnd: Rng): Island {
       ],
     },
   });
+
+  // ── 码头上等他的警察（自首那场戏） ───────────────────
+  // 站在岸边，脸朝着海。玩家从码头上走下来的时候，他们不动。
+  const policeLine: Array<[number, number, number]> = [
+    [-6.2, 0.15, 97.5],
+    [-3.8, 0.15, 96.4],
+    [-1.4, 0.15, 96.0],
+    [1.4, 0.15, 96.0],
+    [3.8, 0.15, 96.4],
+    [6.2, 0.15, 97.5],
+    [-2.6, 0.15, 92.6],
+    [2.6, 0.15, 92.6],
+  ];
+  for (const [px, py, pz] of policeLine) {
+    spawns.push({
+      x: px,
+      z: pz,
+      y: py,
+      yaw: Math.PI,
+      role: 'police',
+      look: POLICE_LOOK,
+      seated: false,
+      courage: 1,
+      scale: 1.02,
+      cap: true,
+      hidden: true,
+    });
+  }
+
+  // ── 刑场上的法警 ─────────────────────────────────────
+  const execGuards: Array<[number, number]> = [
+    [EXEC.x - 4.5, EXEC.z + 6],
+    [EXEC.x - 1.5, EXEC.z + 6],
+    [EXEC.x + 1.5, EXEC.z + 6],
+    [EXEC.x + 4.5, EXEC.z + 6],
+  ];
+  for (const [px, pz] of execGuards) {
+    spawns.push({
+      x: px,
+      z: pz,
+      y: 0,
+      yaw: 0,
+      role: 'police',
+      look: POLICE_LOOK,
+      seated: false,
+      courage: 1,
+      scale: 1.02,
+      cap: true,
+      hidden: true,
+    });
+  }
 
   // ── 合批 ─────────────────────────────────────────────
   group.add(b.build('island-static'));

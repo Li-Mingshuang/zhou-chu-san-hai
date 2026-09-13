@@ -262,9 +262,33 @@ try {
   await waitFor('window.__GAME__.player.inputEnabled === true', '海边镜头结束', 200000);
   await page.eval('window.__GAME__.player.teleport(0.2, 0.2, 110, 0)');
 
-  // ── 九 · 结局 ─────────────────────────────────────────
-  s = await waitBeat('ending');
-  note(`节拍 9 ending  镜头 ${s.mode}`);
+  // ── 九 · 自首 ─────────────────────────────────────────
+  s = await waitBeat('arrest');
+  note(`节拍 9 arrest  镜头 ${s.mode}`);
+  const policeVisible = await page.eval(
+    `window.__GAME__.cultists.filter(c => c.role === 'police' && c.humanoid.root.visible).length`,
+  );
+  note(`岸上现身的警察：${policeVisible} 人`);
+  if (policeVisible < 4) {
+    note('✗ 自首那场戏的警察没有现身');
+    failed++;
+  }
+  await page.eval('window.__GAME__.player.teleport(0, 0.2, 99, Math.PI)');
+  await waitFor('window.__GAME__.director.mode === "cinematic"', '自首镜头', 120000);
+  note('自首镜头播放中（正面固定机位）');
+  await page.screenshot('shots/playthrough-arrest.png');
+
+  // ── 十 · 刑场 ─────────────────────────────────────────
+  s = await waitBeat('execution', 240000);
+  note(`节拍 10 execution  镜头 ${s.mode}  位置 ${s.pos.join(',')}`);
+  await waitFor('window.__GAME__.director.mode === "cinematic"', '刑场镜头', 120000);
+  await sleep(2500);
+  await page.screenshot('shots/playthrough-execution.png');
+  note('刑场镜头播放中（正面固定机位，几乎黑白）');
+
+  // ── 十一 · 结局 ───────────────────────────────────────
+  s = await waitBeat('ending', 240000);
+  note(`节拍 11 ending`);
   await waitFor('!!window.__GAME__ && !document.getElementById("ending-card").classList.contains("hidden")', '结局卡', 240000);
   s = await state();
   note(`结局卡：${s.endingTitle}　|　${s.endingCount}`);
@@ -279,6 +303,9 @@ try {
   if (page.pageErrors.length) console.log('  未捕获异常：\n    ' + page.pageErrors.slice(0, 3).join('\n    '));
   if (page.consoleErrors.length) console.log('  console.error：\n    ' + page.consoleErrors.slice(0, 3).join('\n    '));
   try {
+    const log = await page.eval('window.__GAME__.beatLog');
+    console.log('  节拍流水账：');
+    for (const e of log) console.log(`    t=${e.t}s  ${e.id}  @(${e.x}, ${e.y}, ${e.z})`);
     await page.screenshot('shots/playthrough-failed.png');
     const s = await state();
     console.log('  最后状态：', JSON.stringify(s));
@@ -289,5 +316,5 @@ try {
   await close();
 }
 
-console.log(`\n${failed === 0 ? '通关成功，九个节拍全部走通' : `${failed} 项失败`}`);
+console.log(`\n${failed === 0 ? '通关成功，十一个节拍全部走通' : `${failed} 项失败`}`);
 process.exit(failed === 0 ? 0 : 1);

@@ -1,4 +1,5 @@
 import { PLATEAU_Y, HALL, VAULT, YARD, ANCHORS } from '../world/Layout.js';
+import { EXEC } from '../world/Execution.js';
 import type { GameCtx } from '../core/GameTypes.js';
 import type { Beat } from '../systems/Beat.js';
 import { Seq, inRect } from '../systems/Beat.js';
@@ -547,6 +548,9 @@ function beatReckoning(): Beat {
         if (outdoors && exitTimer > 1.0) {
           g.flag('left-hall', true);
           g.goto();
+          // 必须立刻收手：goto() 会同步跑完下一拍的 enter()，
+          // 而下面那个"人都没了"的条件会被它顺带改成真，于是同一帧连跳两拍。
+          return;
         }
       }
 
@@ -606,6 +610,11 @@ function beatEscape(): Beat {
       g.objective('下山');
       g.ui.setCleansed(g.cleansed, false);
       g.renderer.fadeTo(1, 0.8);
+      // 他跑出大门那一刻，道场里剩下的人就跟这一章无关了。
+      // 否则"走过来劝你"的那些人会一路跟着他走到海边，说话还在耳边。
+      for (const c of g.cultists) {
+        if (c.role === 'follower' || c.role === 'elder') c.retire();
+      }
     },
     update(dt, g) {
       seq.update(dt, g);
@@ -714,7 +723,249 @@ function beatShore(): Beat {
 }
 
 // ══════════════════════════════════════════════════════════
-//  九 · 结局
+//  九 · 自首
+// ══════════════════════════════════════════════════════════
+
+function beatArrest(): Beat {
+  const seq = new Seq([
+    {
+      at: 0.4,
+      fn: (g) => g.say('船靠上码头的时候，他看见岸上站着一排人。', { narr: true }),
+    },
+    {
+      at: 4.5,
+      fn: (g) => g.objective('走过去'),
+    },
+  ]);
+
+  // 正面固定机位。全片他第一次被人从正面看着。
+  const arrest: CinematicShot[] = [
+    {
+      from: [-3.9, 1.62, 94.2],
+      to: [-3.4, 1.6, 93.8],
+      look: 'player',
+      duration: 4.5,
+      fov: 40,
+      drift: 0.06,
+      caption: cap('他走下来的时候，没有人喊话，也没有人举枪。'),
+      narr: true,
+    },
+    {
+      from: [0, 1.66, 92.2],
+      to: [0, 1.64, 92.0],
+      look: 'player',
+      duration: 5,
+      fov: 36,
+      drift: 0.03,
+      caption: cap('我是陈桂林。'),
+    },
+    {
+      from: [0.5, 1.7, 94.6],
+      to: [0.3, 1.68, 94.9],
+      look: 'player',
+      duration: 4.5,
+      fov: 30,
+      drift: 0.02,
+      caption: cap('通缉榜上第三名。我来投案。'),
+    },
+    {
+      from: [11, 6.2, 99],
+      to: [10, 6.4, 100],
+      look: [0, 1.3, 95],
+      duration: 5,
+      fov: 44,
+      drift: 0.09,
+      caption: cap('他没有把枪拿出来。'),
+      narr: true,
+    },
+  ];
+
+  const after = new Seq([
+    { at: 0.3, fn: (g) => (g.player.scriptedVelocity = null) },
+    { at: 0.4, fn: (g) => g.audio.metalDoor() },
+    { at: 1.6, fn: (g) => g.renderer.fadeTo(0, 2.2) },
+    {
+      at: 4.0,
+      fn: (g) => {
+        g.say('三个月后。', { narr: true });
+      },
+    },
+  ]);
+
+  let phase: 'walk' | 'cut' | 'out' = 'walk';
+
+  return {
+    id: 'arrest',
+    title: '自首',
+    enter(g) {
+      phase = 'walk';
+      seq.reset();
+      after.reset();
+      g.setLightPreset('shore');
+      g.renderer.setTuning({ exposure: 1.14, saturation: 0.6 });
+      g.audio.setAmbience('sea', 2.5);
+      g.audio.setSpace('shore');
+      g.setInputEnabled(true);
+      g.player.control = 'fps';
+      g.director.setMode('fps', 0.8, g);
+      g.player.teleport(0, 0.95, 116, Math.PI);
+      g.player.scriptedVelocity = null;
+      g.objective('往岸上走');
+      g.revealPolice();
+    },
+    update(dt, g) {
+      seq.update(dt, g);
+
+      if (phase === 'walk') {
+        if (g.player.position.z < 100) {
+          phase = 'cut';
+          g.objective(null);
+          g.setInputEnabled(false);
+          g.player.scriptedVelocity = { x: 0, z: -1 };
+          void g.director.playShots(arrest, g, null);
+        }
+        return;
+      }
+
+      if (phase === 'cut') {
+        after.update(dt, g);
+        if (after.done) phase = 'out';
+        return;
+      }
+
+      if (g.renderer.isBlack) g.goto();
+    },
+    shot(g) {
+      g.revealPolice();
+      g.player.teleport(0, 0.15, 96.8, Math.PI);
+      for (const c of g.cultists) c.update(0.016, g);
+      g.director.setPose([0, 1.66, 92.2], [0, 1.5, 96.8], 36);
+    },
+  };
+}
+
+// ══════════════════════════════════════════════════════════
+//  十 · 刑场
+// ══════════════════════════════════════════════════════════
+
+function beatExecution(): Beat {
+  const shots: CinematicShot[] = [
+    {
+      from: [EXEC.x + 8, 3.4, EXEC.z + 15],
+      to: [EXEC.x + 6, 3.2, EXEC.z + 13],
+      look: [EXEC.x, 1.2, EXEC.z - 9],
+      duration: 6,
+      fov: 40,
+      drift: 0.12,
+      caption: cap('三个月后。'),
+    },
+    {
+      from: [EXEC.x + 3.4, 1.7, EXEC.z - 3.0],
+      to: [EXEC.x + 2.6, 1.68, EXEC.z - 3.6],
+      look: 'player',
+      duration: 6,
+      fov: 36,
+      drift: 0.05,
+      caption: cap('他走进来的时候，抬头看了一圈。铁丝网上缠着去年的塑料袋。'),
+      narr: true,
+    },
+    {
+      from: [EXEC.x, 1.6, EXEC.postZ + 3.6],
+      to: [EXEC.x, 1.6, EXEC.postZ + 3.4],
+      look: [EXEC.x, 1.42, EXEC.postZ],
+      duration: 7,
+      fov: 34,
+      drift: 0.02,
+      caption: cap('有人问他还有没有话要说。'),
+    },
+    {
+      from: [EXEC.x + 0.62, 1.52, EXEC.postZ + 1.7],
+      to: [EXEC.x + 0.55, 1.5, EXEC.postZ + 1.62],
+      look: [EXEC.x, 1.46, EXEC.postZ],
+      duration: 6,
+      fov: 26,
+      drift: 0.015,
+      caption: cap('他说没有。然后他笑了一下。'),
+      narr: true,
+    },
+  ];
+
+  const volley = new Seq([
+    { at: 0.2, fn: (g) => g.renderer.kick(1.5, 0x000000) },
+    { at: 0.22, fn: (g) => g.audio.gunshot('outdoor') },
+    { at: 0.24, fn: (g) => g.audio.gunshot('outdoor') },
+    { at: 0.26, fn: (g) => g.audio.gunshot('outdoor') },
+    { at: 0.28, fn: (g) => g.audio.gunshot('outdoor') },
+    { at: 0.3, fn: (g) => g.audio.gunshot('outdoor') },
+    { at: 0.35, fn: (g) => g.renderer.fadeTo(0, 0.12) },
+    { at: 1.8, fn: (g) => g.audio.setAmbience('silence', 0.4) },
+  ]);
+
+  let phase: 'intro' | 'walk' | 'volley' | 'out' = 'intro';
+
+  return {
+    id: 'execution',
+    title: '刑场',
+    enter(g) {
+      phase = 'intro';
+      volley.reset();
+      g.renderer.setFade(0);
+      g.renderer.fadeTo(1, 1.6);
+      g.setLightPreset('shore');
+      // 近乎黑白。这一段不需要颜色。
+      g.renderer.setTuning({ exposure: 1.2, saturation: 0.18 });
+      g.audio.setAmbience('silence', 0);
+      g.audio.setSpace('outdoor');
+      g.setInputEnabled(false);
+      g.revealPolice();
+      g.player.teleport(EXEC.x, EXEC.floor, EXEC.z + 11, Math.PI);
+      g.player.scriptedVelocity = null;
+      g.objective(null);
+      g.ui.setCleansed(g.cleansed, false);
+      void g.director.playShots(shots, g, null);
+    },
+    update(dt, g) {
+      if (phase === 'intro' && g.renderer.fadeValue > 0.85) {
+        phase = 'walk';
+        // 第二镜开始他往柱子那边走
+        g.player.scriptedVelocity = { x: 0, z: -1 };
+        setTimeout(() => {
+          /* 走到柱子就停，由下面的位置判断接管 */
+        }, 0);
+      }
+
+      if (phase === 'walk') {
+        // 走到行刑柱前站住
+        if (g.player.position.z <= EXEC.postZ + 1.1) {
+          g.player.scriptedVelocity = null;
+          const d = EXEC.postZ + 1.1 - g.player.position.z;
+          if (d < 0) g.player.teleport(EXEC.x, EXEC.floor, EXEC.postZ + 1.1, Math.PI);
+        }
+        // 最后一镜结束后开火
+        if (g.director.cinematicDone) {
+          phase = 'volley';
+          volley.reset();
+        }
+      }
+
+      if (phase === 'volley') {
+        volley.update(dt, g);
+        if (volley.done) phase = 'out';
+      }
+
+      if (phase === 'out' && g.renderer.isBlack) g.goto();
+    },
+    shot(g) {
+      g.revealPolice();
+      g.player.teleport(EXEC.x, EXEC.floor, EXEC.postZ + 1.1, Math.PI);
+      for (const c of g.cultists) c.update(0.016, g);
+      g.director.setPose([EXEC.x, 1.6, EXEC.postZ + 3.6], [EXEC.x, 1.42, EXEC.postZ], 34);
+    },
+  };
+}
+
+// ══════════════════════════════════════════════════════════
+//  十一 · 结局
 // ══════════════════════════════════════════════════════════
 
 function beatEnding(): Beat {
@@ -723,52 +974,12 @@ function beatEnding(): Beat {
     title: '结局',
     enter(g) {
       g.setInputEnabled(false);
-      g.player.teleport(0, 0.95, 108, Math.PI);
-      g.renderer.setTuning({ exposure: 1.2, saturation: 0.5 });
-      g.setLightPreset('shore');
-      g.audio.setAmbience('sea', 3);
-      g.audio.setSpace('shore');
+      g.player.scriptedVelocity = null;
       g.objective(null);
-
-      const shots: CinematicShot[] = [
-        {
-          from: [0.5, 1.9, 104.5],
-          to: [0.2, 2.0, 105.6],
-          look: [0, 1.5, 112],
-          duration: 5,
-          fov: 40,
-          drift: 0.05,
-          caption: cap('他上了船。船长认识他，什么也没问。'),
-          narr: true,
-        },
-        {
-          from: [-6, 3.2, 112],
-          to: [-5, 3.4, 113],
-          look: [0, 1.4, 104],
-          duration: 5,
-          fov: 44,
-          drift: 0.07,
-          caption: cap('岛上的人站在岸上看着他。没有人喊。'),
-          narr: true,
-        },
-        {
-          from: [0.4, 1.7, 106.6],
-          to: [0.3, 1.75, 107.2],
-          look: [0.4, 1.45, 108.4],
-          duration: 6,
-          fov: 32,
-          drift: 0.02,
-          caption: cap('他从口袋里摸出一根烟，点着，吸了一口。'),
-          narr: true,
-        },
-      ];
-
-      void g.director.playShots(shots, g, null).then(() => {
-        g.finish(g.resolveEnding());
-      });
+      g.finish(g.resolveEnding());
     },
     update() {
-      /* 交给镜头脚本 */
+      /* 结局卡已经在画面上 */
     },
     shot(g) {
       g.player.teleport(0, 0.95, 106, Math.PI);
@@ -789,6 +1000,8 @@ export function createChapter3(): Beat[] {
     beatReckoning(),
     beatEscape(),
     beatShore(),
+    beatArrest(),
+    beatExecution(),
     beatEnding(),
   ];
 }
@@ -802,6 +1015,8 @@ export const CHAPTER3_BEATS = [
   'reckoning',
   'escape',
   'shore',
+  'arrest',
+  'execution',
   'ending',
 ] as const;
 

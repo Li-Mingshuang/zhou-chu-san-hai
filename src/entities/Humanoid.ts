@@ -39,6 +39,32 @@ export const PLAYER_LOOK: HumanoidLook = {
   shoe: P.shoe,
 };
 
+/** 警察／法警。深藏青，制服硬，脸看不见。 */
+export const POLICE_LOOK: HumanoidLook = {
+  robe: 0x24282f,
+  robeTrim: 0x11141a,
+  skin: 0xb8916f,
+  hair: 0x15120f,
+  pants: 0x1c1f24,
+  shoe: 0x141414,
+};
+
+/** 给一个已建好的人形戴上大檐帽。刑场与码头上的人靠这个区分身份。 */
+export function addCap(humanoid: Humanoid, mats: MatLib, color = 0x1b1f26): Group {
+  const key = mats.key(color);
+  const cap = mergePieces(
+    mats,
+    [
+      { geo: boxGeo(0.24, 0.055, 0.26), key, m: trs(0, 0.26, 0) },
+      { geo: boxGeo(0.22, 0.12, 0.06), key, m: trs(0, 0.2, -0.115) },
+      { geo: boxGeo(0.24, 0.03, 0.07), key, m: trs(0, 0.16, -0.15) },
+    ],
+    'cap',
+  );
+  humanoid.head.add(cap);
+  return cap;
+}
+
 interface Piece {
   geo: BufferGeometry;
   key: string;

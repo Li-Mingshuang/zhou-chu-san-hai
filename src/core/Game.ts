@@ -26,7 +26,7 @@ import { ANCHORS, PLATEAU_Y } from '../world/Layout.js';
 import type { Level } from '../world/Collision.js';
 import { Player } from '../entities/Player.js';
 import { Pistol } from '../entities/Pistol.js';
-import { Cultist, remainingCount, type CultistSpawn } from '../entities/Cultist.js';
+import { Cultist, type CultistSpawn } from '../entities/Cultist.js';
 import { HumanoidFactory, PLAYER_LOOK, type Humanoid } from '../entities/Humanoid.js';
 import { createChapter3 } from '../chapter3/script.js';
 
@@ -73,6 +73,7 @@ export class Game implements GameCtx {
   private elapsedTime = 0;
   private cleansedValue = 1;
   private casualtiesValue = 0;
+  private crowdValue = 0;
   private drewGunOnce = false;
   /** 剧本是否把控制权交还给玩家。镜头处于电影模式时一律无效。 */
   private scriptInput = true;
@@ -90,6 +91,8 @@ export class Game implements GameCtx {
   private preset: LightPresetId = 'yard';
   /** 分镜模式：加载后摆好姿势就冻结，只渲染。 */
   private frozen = false;
+  /** 节拍流水账（调试与验收用）。 */
+  readonly beatLog: Array<{ id: string; t: number; x: number; y: number; z: number }> = [];
 
   constructor(canvas: HTMLCanvasElement) {
     this.params = readParams();
@@ -126,7 +129,19 @@ export class Game implements GameCtx {
       this.drewGunOnce = true;
     });
     // 换节拍时把上一拍的字幕清掉，否则上一场戏的台词会跟着走进下一场
-    this.bus.on(Ev.BeatEnter, () => this.ui.clearSubtitles());
+    this.bus.on(Ev.BeatEnter, (p) => {
+      this.ui.clearSubtitles();
+      // 节拍流水账：出问题的时候，"哪一拍把哪一拍跳过去了"一眼就能看出来
+      const id = (p as { id?: string } | undefined)?.id ?? '';
+      this.beatLog.push({
+        id,
+        t: +this.elapsedTime.toFixed(2),
+        x: +this.player.position.x.toFixed(1),
+        y: +this.player.position.y.toFixed(1),
+        z: +this.player.position.z.toFixed(1),
+      });
+      if (this.beatLog.length > 64) this.beatLog.shift();
+    });
 
     this.applyPreset('yard', true);
     window.addEventListener('resize', this.onResize);
@@ -256,7 +271,7 @@ export class Game implements GameCtx {
     this.ui.setHudVisible(false);
     this.ui.setCrosshair(false, false);
 
-    const spared = remainingCount(this.cultists);
+    const spared = Math.max(0, this.crowdValue - this.casualtiesValue);
     const count = `已除 3 / 3　·　开枪 ${this.pistol.shotsFired} 次　·　倒下 ${this.casualtiesValue} 人　·　留下 ${spared} 人`;
 
     if (ending === 'counted') {
@@ -340,10 +355,18 @@ export class Game implements GameCtx {
   }
 
   spawnCultist(opts: CultistSpawn): Cultist {
-    const c = new Cultist(opts, this.humanoids);
+    const c = new Cultist(opts, this.humanoids, this.mats);
     c.attach(this.world);
     this.cultists.push(c);
+    // 礼厅里"人"的总数。结局卡上的"留下 N 人"用它减去倒下的人数——
+    // 不能事后去数，因为逃跑段会把还活着的信徒移出场外。
+    if (c.role === 'follower' || c.role === 'elder') this.crowdValue++;
     return c;
+  }
+
+  /** 让藏在场外的人（警察）现身。 */
+  revealPolice(): void {
+    for (const c of this.cultists) if (c.role === 'police') c.reveal();
   }
 
   // ══════════════════════════════════════════════════════
@@ -463,7 +486,15 @@ export class Game implements GameCtx {
 
   private updateAvatar(dt: number): void {
     const mode = this.director.mode;
-    const visible = mode === 'topdown' || mode === 'side';
+    let visible = mode === 'topdown' || mode === 'side';
+    if (mode === 'cinematic') {
+      // 电影镜头大多是"看向他"的第三人称机位，这时必须有身体，
+      // 否则镜头对面是一间空屋子。只有机位贴到脸上时才藏起来。
+      const c = this.camera.position;
+      const p = this.player.position;
+      const d = Math.hypot(c.x - p.x, c.y - (p.y + 1.0), c.z - p.z);
+      visible = d > 2.2;
+    }
     if (!visible) {
       if (this.avatar) this.avatar.setVisible(false);
       return;
@@ -479,7 +510,7 @@ export class Game implements GameCtx {
     const speed = this.player.speed;
     this.avatarPhase += dt * (4.2 + speed * 1.7);
     if (speed > 0.25) this.avatar.pose(this.avatarPhase, clamp(speed / 3.2, 0, 1.4), 0.1);
-    else this.avatar.pose(this.avatarPhase, 0.05, 0);
+    else this.avatar.pose(this.avatarPhase, 0.04, 0);
   }
 
   private handleActions(): void {
@@ -521,6 +552,8 @@ export class Game implements GameCtx {
     this.audio.update(dt);
 
     if (this.frozen) {
+      // 分镜冻结时也要摆一次身体，否则"看向他"的机位拍到的是一间空屋子
+      this.updateAvatar(0.0001);
       this.renderer.update(dt);
       this.ui.update(dt);
       return;
@@ -581,7 +614,7 @@ export class Game implements GameCtx {
       `beat ${this.beatId}  t ${this.beatTime.toFixed(1)}s  mode ${this.director.mode}`,
       `pos ${p.x.toFixed(1)} ${p.y.toFixed(1)} ${p.z.toFixed(1)}  yaw ${this.player.yaw.toFixed(2)}`,
       `ammo ${this.pistol.ammo}/${this.pistol.capacity}  drawn ${this.pistol.drawn ? 'Y' : 'N'}  aim ${this.pistol.aiming ? 'Y' : 'N'}`,
-      `casualties ${this.casualtiesValue}  alive ${remainingCount(this.cultists)}  preset ${this.preset}`,
+      `casualties ${this.casualtiesValue}  crowd ${this.crowdValue}  preset ${this.preset}`,
     ].join('\n');
   }
 

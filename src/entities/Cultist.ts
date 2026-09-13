@@ -2,7 +2,7 @@ import { Vector3, type Object3D } from 'three';
 import { clamp, damp, dampAngle } from '../core/MathUtils.js';
 import type { GameCtx } from '../core/GameTypes.js';
 import { Ev } from '../core/EventBus.js';
-import { CULTIST_LOOKS, HumanoidFactory, type Humanoid, type HumanoidLook } from './Humanoid.js';
+import { CULTIST_LOOKS, HumanoidFactory, addCap, type Humanoid, type HumanoidLook } from './Humanoid.js';
 import type { RayHit } from '../systems/Ballistics.js';
 import { HALL } from '../world/Layout.js';
 
@@ -28,7 +28,7 @@ export type CultistState =
   /** 倒地。 */
   | 'down';
 
-export type CultistRole = 'follower' | 'elder' | 'idol';
+export type CultistRole = 'follower' | 'elder' | 'idol' | 'police';
 
 export interface CultistSpawn {
   x: number;
@@ -49,6 +49,10 @@ export interface CultistSpawn {
   /** 反应延迟偏移（秒），用来把整场戏排成波次。 */
   reactionOffset?: number;
   scale?: number;
+  /** 戴大檐帽（警察／法警）。 */
+  cap?: boolean;
+  /** 一开始就藏起来，等剧本点名再出现（警察在自首那场才登场）。 */
+  hidden?: boolean;
 }
 
 const WALK_SPEED = 1.15;
@@ -110,11 +114,12 @@ export class Cultist {
   private tremble = 0;
   private readonly tmp = new Vector3();
 
-  constructor(spawn: CultistSpawn, factory: HumanoidFactory) {
+  constructor(spawn: CultistSpawn, factory: HumanoidFactory, mats?: import('../render/Mats.js').MatLib) {
     this.id = `cultist-${cultistCounter++}`;
     const look =
       spawn.look ?? CULTIST_LOOKS[(spawn.lookIndex ?? cultistCounter) % CULTIST_LOOKS.length]!;
     this.humanoid = factory.make(look, { full: false, scale: spawn.scale ?? 1 });
+    if (spawn.cap && mats) addCap(this.humanoid, mats);
     this.height = this.humanoid.height;
     this.role = spawn.role ?? 'follower';
     this.name = spawn.name ?? '';
@@ -131,6 +136,18 @@ export class Cultist {
     this.humanoid.root.position.copy(this.position);
     this.humanoid.root.rotation.y = this.seatYaw;
     if (this.state === 'seated') this.humanoid.sit();
+    if (spawn.hidden) this.humanoid.setVisible(false);
+    this.hidden = spawn.hidden ?? false;
+  }
+
+  /** 剧本点名时才出现（警察）。 */
+  hidden = false;
+
+  /** 让整批人一起显形。 */
+  reveal(): void {
+    this.hidden = false;
+    this.visible = true;
+    this.humanoid.setVisible(true);
   }
 
   /** 是否在渲染距离内。 */
@@ -138,19 +155,26 @@ export class Cultist {
 
   attach(parent: Object3D): void {
     parent.add(this.humanoid.root);
+    this.humanoid.setVisible(!this.hidden);
   }
 
   setVisible(v: boolean): void {
-    this.humanoid.setVisible(v);
+    this.humanoid.setVisible(v && !this.hidden);
   }
 
   detach(): void {
     this.humanoid.root.removeFromParent();
   }
 
+  /** 让他彻底离开这一章（不再更新、不再被算作场内的人）。 */
+  retire(): void {
+    this.retired = true;
+    this.detach();
+  }
+
   /** 枪被拔出来时：有人站起来，有人立刻开始念。 */
   onGunDrawn(game: GameCtx): void {
-    if (!this.alive || this.role === 'idol' || this.armedReaction) return;
+    if (!this.alive || this.role === 'idol' || this.role === 'police' || this.armedReaction) return;
     if (this.state !== 'seated' && this.state !== 'frozen') return;
     this.armedReaction = true;
     this.queueReaction(0.45 + this.reactionOffset * 0.7);
@@ -159,7 +183,7 @@ export class Cultist {
 
   /** 有人倒下了：附近的重新做一次决定，越近越慌。 */
   onNeighborDown(distance: number): void {
-    if (!this.alive || this.role === 'idol' || this.retired) return;
+    if (!this.alive || this.role === 'idol' || this.role === 'police' || this.retired) return;
     const close = clamp(1 - distance / 6.5, 0, 1);
     this.terror = clamp(this.terror + 0.3 + close * 0.55, 0, 1.3);
     if (this.state === 'flee' || this.state === 'down') return;
@@ -242,6 +266,13 @@ export class Cultist {
 
   update(dt: number, game: GameCtx): void {
     if (this.retired) return;
+
+    // 警察／法警：只站着。不劝、不跪、不跑、不说话。
+    if (this.role === 'police') {
+      this.humanoid.root.position.copy(this.position);
+      this.humanoid.root.rotation.set(0, this.seatYaw, 0);
+      return;
+    }
 
     // 第一声枪响之后，整场戏分波次炸开
     if (this.state === 'down') {
@@ -405,9 +436,13 @@ export class Cultist {
   }
 }
 
-/** 场上还站着的（含跪着与坐在原位的）人数。 */
+/** 场上还站着的（含跪着与坐在原位的）信徒人数。警察不算。 */
 export function remainingCount(list: readonly Cultist[]): number {
   let n = 0;
-  for (const c of list) if (c.alive && !c.retired && c.state !== 'down') n++;
+  for (const c of list) {
+    if (!c.alive || c.retired || c.state === 'down') continue;
+    if (c.role === 'police') continue;
+    n++;
+  }
   return n;
 }

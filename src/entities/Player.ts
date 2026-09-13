@@ -42,6 +42,12 @@ export class Player {
   lookLock: { yaw: number; pitch: number } | null = null;
   /** 强制跑步（俯视逃跑段）。 */
   forcedRun = false;
+  /**
+   * 剧本接管移动。
+   * 电影镜头里 control 是 'none'，玩家没有输入，但有些镜头需要他继续往前走
+   * （比如走向岸上那排警察、走向行刑柱）。这时由剧本给出方向与速度。
+   */
+  scriptedVelocity: { x: number; z: number } | null = null;
   /** 俯视模式下的角色朝向。 */
   facing = 0;
 
@@ -224,10 +230,22 @@ export class Player {
       }
     }
 
-    const mag = Math.hypot(wx, wz);
+    let mag = Math.hypot(wx, wz);
     if (mag > 1e-4) {
       wx /= mag;
       wz /= mag;
+    }
+
+    // 剧本接管：镜头在放，但他的腿还在走
+    if (this.scriptedVelocity) {
+      const sv = this.scriptedVelocity;
+      const sm = Math.hypot(sv.x, sv.z) || 1;
+      wx = sv.x / sm;
+      wz = sv.z / sm;
+      mag = 1;
+      const yawWant = Math.atan2(-wx, -wz);
+      this.yaw = dampAngle(this.yaw, yawWant, 5, dt);
+      this.facing = this.yaw;
     }
 
     const wantRun = this.forcedRun || (this.inputEnabled && input.down('run'));

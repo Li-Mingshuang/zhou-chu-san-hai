@@ -66,6 +66,8 @@ export interface GameCtx {
   addInteractable(i: Interactable): Interactable;
   removeInteractable(i: Interactable): void;
   spawnCultist(opts: CultistSpawn): Cultist;
+  /** 让藏在场外的警察现身（自首与刑场两场戏）。 */
+  revealPolice(): void;
 
   /** 交出/收回玩家对镜头与移动的控制权（电影镜头、受刑段落）。 */
   setInputEnabled(on: boolean): void;

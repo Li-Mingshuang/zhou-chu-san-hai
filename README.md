@@ -57,7 +57,7 @@
 
 ## 这一章有什么
 
-九个节拍，约十二分钟。
+十一个节拍，约十七分钟。
 
 | # | 节拍 | 镜头 | 你在做什么 |
 |---|---|---|---|
@@ -69,7 +69,9 @@
 | 6 | **开枪** | 第一人称 | 六发子弹，二十几个人 |
 | 7 | **下山** | **俯视跑步** | 穿过椰林、石阶、山径，跑到海边 |
 | 8 | 海边 | **横版侧视** | 洗脸，刮胡子，走上船 |
-| 9 | 结局 | 电影 | 字幕 |
+| 9 | **自首** | 第一人称 → **正面固定机位** | 走上码头，面前站着一排人 |
+| 10 | **刑场** | 正面固定机位 | 三个月后。他走到柱子前面 |
+| 11 | 结局 | 字幕 | 三个结局之一 |
 
 ### 镜头会在关键时刻自己动
 
@@ -83,9 +85,14 @@
 | `FirstPerson` | 默认 | 指针锁自由视角，头部摆动，拔枪时视场收缩 |
 | `TopDownRun` | **下山** | 14–16 米高、62° 俯角；惯性延迟跟随、转弯侧倾、速度拉高镜头；W 就是"屏幕往上"= 他真正要去的方向 |
 | `SideScroll` | 海边 | 长焦侧视，只沿一条轴推进 |
-| `Cinematic` | 开场 / 密室 / 受刑 / 结局 | 固定与轨道机位，玩家失去控制，可长按 `Esc` 跳过 |
+| `Cinematic` | 开场 / 密室 / 受刑 / 自首 / 刑场 | 固定与轨道机位，玩家失去控制，可长按 `Esc` 跳过。自首与刑场用的是**正面固定机位**——全片他第一次被人从正面看着，与礼厅那场第一人称正好相反 |
 
 ![下山](docs/shot-escape.png)
+
+而在最后两场戏里，镜头第一次站到了他的对面——**正面固定机位**。
+自首的时候，一排警察和海在他背后；刑场那一拍几乎去掉了全部颜色。
+
+![刑场](docs/shot-execution.png)
 
 ---
 
@@ -137,23 +144,25 @@
 
 ```bash
 pnpm preview                        # 一个静态服务器（另开一个终端）
-pnpm verify                         # 十三个机位逐个加载：读状态 + 截图 + 抓异常
+pnpm verify                         # 十五个机位逐个加载：读状态 + 截图 + 抓异常
 pnpm play                           # 自动通关：从第一拍一路走到结局卡
 pnpm inspect shots/xxx.png 88       # 把截图解码成统计量 + ASCII 亮度图
 ```
 
 - `tools/cdp.mjs` 是一个最小可用的 Chrome DevTools Protocol 客户端（Node 22+ 自带
   WebSocket 与 fetch，不需要 Playwright）。
-- `tools/verify.mjs` 把每一拍的代表机位加载一遍，读回 draw call 数、三角形数、玩家坐标、
+- `tools/verify.mjs` 把十五个代表机位各加载一遍（每个机位换一个干净的 Chrome 实例），读回 draw call 数、三角形数、玩家坐标、
   相机坐标、目标与字幕文本，并抓 `#fatal` 与未捕获异常。
 - `tools/playthrough.mjs` 是真正的验收：它用**真实的键盘事件**驱动游戏，从抵岛开始，
   交表、坐下、挨鞭、开铁门、翻完密室里的六样东西、拔枪打死尊者、跟着俯视镜头跑下山、
-  在海边走到码头，最后检查结局卡上的清算计数有没有走到 3/3。
+  在海边走到码头，让岸上八个警察现身、自首，再被带到刑场，最后检查结局卡上的清算计数有没有走到 3/3。
 - `tools/inspect.mjs` 自己解 PNG（zlib + 手写反滤波），因为没有 Playwright 也就没有图像库。
   它输出平均亮度、标准差、四分区亮度、主色，以及一张 ASCII 亮度图——
   构图可以直接读出来，不必依赖能看图的模型。
 
-上面的"通关成功，九个节拍全部走通"就是这条命令打出来的。
+上面的"通关成功，十一个节拍全部走通"就是这条命令打出来的。
+
+这套工具抓出过好几个真 bug：`?debug` 的 draw call 数一直是 1（统计被后处理那一趟覆盖了）；过场放完之后玩家永远拿不回控制权；礼堂那一拍的退出判断里两段独立条件在同一帧里连跳两拍，把整个俯视跑步段跳过去了。这些问题用眼睛看截图都发现不了。
 
 ---
 
@@ -164,10 +173,10 @@ src/
   core/       Game (唯一的上帝对象) · Input · Settings · Save · Params · EventBus · 数学工具
   render/     Renderer(后处理) · Mats · Geo(合批器) · Particles · Palette · TextTex
   camera/     CameraDirector + 四种机位
-  world/      Layout(全部尺寸与地形函数) · Collision · Terrain · Nature · Shell · Props · Island
+  world/      Layout(全部尺寸与地形函数) · Collision · Terrain · Nature · Shell · Props · Execution · Island
   entities/   Player · Pistol · Cultist · Humanoid
   systems/    Interaction · Ballistics · Beat(节拍状态机)
-  chapter3/   script.ts —— 九个节拍的剧本
+  chapter3/   script.ts —— 十一个节拍的剧本
   ui/         HUD · 字幕 · 菜单（DOM 覆盖层）
   audio/      AudioEngine（1742 行实时合成）
 tools/        cdp · verify · playthrough · shots · inspect

@@ -25,6 +25,8 @@ const PLAN = [
   { beat: 'reckoning', t: 14 },
   { beat: 'escape', t: 0 },
   { beat: 'shore', t: 0 },
+  { beat: 'arrest', t: 0 },
+  { beat: 'execution', t: 0 },
   { beat: 'ending', t: 2 },
 ];
 
