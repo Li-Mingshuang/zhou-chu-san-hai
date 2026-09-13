@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="zh-Hans">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>周处除三害 · 新心灵舍</title>
+    <meta
+      name="description"
+      content="非官方影迷同人第一人称游戏。第三章：澎湖小岛，新心灵舍。"
+    />
+    <meta name="color-scheme" content="dark" />
+  </head>
+  <body>
+    <div id="app">
+      <canvas id="stage"></canvas>
+
+      <!-- 胶片后处理之上的全屏覆盖层 -->
+      <div id="grain" aria-hidden="true"></div>
+      <div id="vignette" aria-hidden="true"></div>
+
+      <!-- 电影黑边 -->
+      <div id="letterbox" aria-hidden="true">
+        <div class="bar top"></div>
+        <div class="bar bottom"></div>
+      </div>
+
+      <!-- HUD -->
+      <div id="hud" class="hidden" aria-hidden="true">
+        <div id="crosshair">
+          <span class="ch-dot"></span>
+          <span class="ch-l"></span><span class="ch-r"></span>
+          <span class="ch-t"></span><span class="ch-b"></span>
+        </div>
+        <div id="prompt"></div>
+        <div id="objective"></div>
+        <div id="ammo"></div>
+        <div id="vitae">
+          <span id="cleansed">已除 <b>0</b> / 3</span>
+        </div>
+        <div id="debug"></div>
+      </div>
+
+      <!-- 字幕 -->
+      <div id="subs" aria-live="polite"></div>
+
+      <!-- 菜单 / 开场 / 结局 -->
+      <div id="overlay">
+        <div id="title-card">
+          <p class="kicker">非官方影迷同人作品 · Unofficial Fan Work</p>
+          <h1>周处除三害</h1>
+          <h2>第三章 · 新心灵舍</h2>
+          <p class="quote">
+            「贪、嗔、痴。鸽子、蛇、猪。」<br />
+            <span>你想要被记住，所以你来找第三个名字。</span>
+          </p>
+          <div class="keys">
+            <div><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> 移动</div>
+            <div><kbd>Shift</kbd> 跑 · <kbd>Ctrl</kbd> 蹲</div>
+            <div><kbd>E</kbd> 查看 / 交互</div>
+            <div><kbd>左键</kbd> 拔枪 / 开枪</div>
+            <div><kbd>右键</kbd> 仪式瞄准（按住）</div>
+            <div><kbd>F</kbd> 收枪 · <kbd>Esc</kbd> 暂停</div>
+          </div>
+          <button id="btn-start" type="button">进入小岛</button>
+          <p class="fine">
+            本作不含电影素材，全部美术与音效为程序化生成。暴力表现为低多边形、非血腥的抽象处理。
+          </p>
+        </div>
+
+        <div id="pause-card" class="hidden">
+          <h2>暂停</h2>
+          <div class="rows">
+            <label>鼠标灵敏度 <input id="opt-sens" type="range" min="0.2" max="3" step="0.05" /></label>
+            <label>音量 <input id="opt-vol" type="range" min="0" max="1" step="0.05" /></label>
+            <label>像素尺度 <input id="opt-pix" type="range" min="0.35" max="1" step="0.05" /></label>
+            <label class="check"><input id="opt-inv" type="checkbox" /> 反转 Y 轴</label>
+            <label class="check"><input id="opt-shake" type="checkbox" /> 镜头晃动</label>
+            <label class="check"><input id="opt-grain" type="checkbox" /> 胶片颗粒</label>
+          </div>
+          <div class="btns">
+            <button id="btn-resume" type="button">继续</button>
+            <button id="btn-restart" type="button">从本章开头重来</button>
+          </div>
+        </div>
+
+        <div id="ending-card" class="hidden">
+          <h2 id="ending-title">第三害</h2>
+          <p id="ending-body"></p>
+          <p id="ending-count"></p>
+          <button id="btn-again" type="button">再来一次</button>
+        </div>
+
+        <div id="lock-hint" class="hidden">
+          <p>点击画面继续</p>
+        </div>
+      </div>
+
+      <div id="fatal" class="hidden"></div>
+    </div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

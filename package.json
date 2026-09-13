@@ -1,0 +1,25 @@
+{
+  "name": "zhou-chu-san-hai",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Unofficial fan-made first-person game based on the film The Pig, the Snake and the Pigeon — Chapter III: Xin Xin Ling She",
+  "scripts": {
+    "dev": "vite",
+    "typecheck": "tsc --noEmit",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview --port 4173 --strictPort",
+    "verify": "node tools/verify.mjs",
+    "play": "node tools/playthrough.mjs",
+    "shots": "node tools/shots.mjs",
+    "inspect": "node tools/inspect.mjs"
+  },
+  "dependencies": {
+    "three": "^0.186.0"
+  },
+  "devDependencies": {
+    "@types/three": "0.185.4",
+    "typescript": "^5.9.2",
+    "vite": "^7.1.3"
+  }
+}
