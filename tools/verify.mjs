@@ -31,18 +31,24 @@ const PLAN = [
 const filter = process.argv.slice(2);
 const plan = filter.length ? PLAN.filter((p) => filter.includes(p.beat)) : PLAN;
 
-const { page, close } = await launch({ url: 'about:blank', width: 1600, height: 900 });
-
 let failures = 0;
 
-try {
-  for (const { beat, t } of plan) {
-    const name = t ? `${beat}_t${t}` : beat;
-    const url = `${BASE}/?shot=${beat}&t=${t}&debug=1&mute=1&seed=20231124`;
+// 每个机位用一个干净的 Chrome 实例。
+// 复用同一个实例时，反复导航几次之后浏览器进程会卡死（CDP 命令开始超时），
+// 而这里的成本只是每次多花三秒启动——换来确定性，值。
+for (const { beat, t } of plan) {
+  const name = t ? `${beat}_t${t}` : beat;
+  const url = `${BASE}/?shot=${beat}&t=${t}&debug=1&mute=1&seed=20231124`;
+  process.stdout.write(`\n═══ ${name}\n`);
+
+  let { page, close } = await launch({ url: 'about:blank', width: 1600, height: 900 });
+  let attempt = 0;
+  let done = false;
+
+  while (attempt < 3 && !done) {
+    attempt++;
     page.consoleErrors.length = 0;
     page.pageErrors.length = 0;
-
-    process.stdout.write(`\n═══ ${name}\n`);
     try {
       await page.goto(url);
       await page.waitFor('window.__SHOT_READY__ === true', 30000, '场景加载完成');
@@ -63,12 +69,11 @@ try {
           objective: txt('objective'),
           subs: txt('subs').slice(0, 70),
           fatal: txt('fatal').slice(0, 200),
-          frozen: g.frozen,
         };
       })()`);
 
       await page.screenshot(`${OUT}/${name}.png`);
-      console.log(`  beat=${state.beatId} mode=${state.mode} frozen=${state.frozen}`);
+      console.log(`  beat=${state.beatId} mode=${state.mode}`);
       console.log(`  玩家 ${state.pos.join(', ')}  相机 ${state.cam.join(', ')}`);
       console.log(`  draw calls ${state.draws}  三角形 ${state.tris}  信徒 ${state.alive}/${state.cultists}`);
       if (state.objective) console.log(`  目标：${state.objective.replace(/\s+/g, ' ')}`);
@@ -76,26 +81,33 @@ try {
       if (state.fatal) {
         console.log(`  ✗ 页面内致命错误：${state.fatal.split('\n')[0]}`);
         failures++;
-      }
-      if (state.draws === 0) {
+      } else if (state.draws === 0) {
         console.log('  ✗ 一个 draw call 都没有——画面是空的');
         failures++;
-      }
-      if (page.pageErrors.length) {
+      } else if (page.pageErrors.length) {
         console.log(`  ✗ 未捕获异常：${page.pageErrors[0].split('\n')[0]}`);
         failures++;
+      } else {
+        if (page.consoleErrors.length) {
+          console.log(`  ! console.error：${page.consoleErrors.slice(0, 2).join(' | ')}`);
+        }
+        console.log('  ✓');
       }
-      if (page.consoleErrors.length) {
-        console.log(`  ! console.error：${page.consoleErrors.slice(0, 2).join(' | ')}`);
-      }
-      if (!state.fatal && state.draws > 0 && !page.pageErrors.length) console.log('  ✓');
+      done = true;
     } catch (e) {
-      console.log(`  ✗ ${e.message.split('\n')[0]}`);
-      failures++;
+      const msg = e.message.split('\n')[0];
+      if (attempt < 3) {
+        console.log(`  … 第 ${attempt} 次失败（${msg}），换个 Chrome 实例重试`);
+        await close();
+        ({ page, close } = await launch({ url: 'about:blank', width: 1600, height: 900 }));
+      } else {
+        console.log(`  ✗ ${msg}`);
+        failures++;
+      }
     }
   }
-} finally {
   await close();
+  if (process.env.FRESH_DELAY) await sleep(Number(process.env.FRESH_DELAY));
 }
 
 console.log(`\n${failures === 0 ? '全部通过' : `${failures} 项失败`}`);
