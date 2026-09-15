@@ -26,7 +26,7 @@ import type { Cultist } from './Cultist.js';
  * 枪身模型挂在相机下作为视图模型，非第一人称镜头时自动隐藏。
  */
 
-const HIP_POS = new Vector3(0.2, -0.185, -0.42);
+const HIP_POS = new Vector3(0.2, -0.145, -0.4);
 const HIP_ROT = new Vector3(0.02, -0.1, 0);
 const AIM_POS = new Vector3(0.0, -0.062, -0.34);
 const AIM_ROT = new Vector3(0.0, 0.0, 0);
@@ -149,6 +149,54 @@ export class Pistol {
 
     const gripGeo = boxGeo(0.052, 0.18, 0.078).clone().applyMatrix4(trs(0.002, -0.1, 0.075, 0, 1, 1, 1, 0.26));
     group.add(new Mesh(gripGeo, this.mats.get(kGrip)));
+
+    // ── 两只手与前臂 ─────────────────────────────────────
+    // 只有一把枪浮在画面里是很怪的：手是"你在这里"的唯一证据。
+    // 手做成两段（掌 + 前臂），前臂从画面下缘伸进来。
+    const kSkin = this.mats.key(P.skinDark, { metalness: 0.05, roughness: 0.9 });
+    const kSleeve = this.mats.key(P.jacketDark, { metalness: 0.05, roughness: 0.95 });
+
+    // 右手：握住握把
+    const rightHand = mergeGeometries(
+      [
+        // 掌
+        boxGeo(0.075, 0.085, 0.115).clone().applyMatrix4(trs(0.004, -0.1, 0.078, 0, 1, 1, 1, 0.28)),
+        // 拇指
+        boxGeo(0.03, 0.032, 0.085).clone().applyMatrix4(trs(-0.038, -0.072, 0.05, 0, 1, 1, 1, 0.4)),
+        // 食指压在扳机护圈上
+        boxGeo(0.026, 0.028, 0.075).clone().applyMatrix4(trs(-0.006, -0.062, 0.012, 0, 1, 1, 1, 0.1)),
+      ],
+      false,
+    );
+    if (rightHand) group.add(new Mesh(rightHand, this.mats.get(kSkin)));
+
+    // 右前臂（袖子）：从手往画面右下后方去
+    const rightArm = mergeGeometries(
+      [
+        boxGeo(0.1, 0.095, 0.34).clone().applyMatrix4(trs(0.055, -0.215, 0.235, 0, 1, 1, 1, 0.62)),
+      ],
+      false,
+    );
+    if (rightArm) group.add(new Mesh(rightArm, this.mats.get(kSleeve)));
+
+    // 左手：托在握把下方
+    const leftHand = mergeGeometries(
+      [
+        boxGeo(0.072, 0.075, 0.105).clone().applyMatrix4(trs(-0.05, -0.135, 0.045, 0, 1, 1, 1, 0.18)),
+        boxGeo(0.028, 0.03, 0.07).clone().applyMatrix4(trs(-0.086, -0.115, 0.075, 0, 1, 1, 1, 0.3)),
+      ],
+      false,
+    );
+    if (leftHand) group.add(new Mesh(leftHand, this.mats.get(kSkin)));
+
+    // 左前臂
+    const leftArm = mergeGeometries(
+      [
+        boxGeo(0.095, 0.09, 0.3).clone().applyMatrix4(trs(-0.115, -0.245, 0.2, 0, 1, 1, 1, 0.55)),
+      ],
+      false,
+    );
+    if (leftArm) group.add(new Mesh(leftArm, this.mats.get(kSleeve)));
 
     group.scale.setScalar(0.92);
     return group;

@@ -177,11 +177,13 @@ export function buildIsland(mats: MatLib, rnd: Rng): Island {
   });
 
   // 礼厅里弹吉他唱歌的人。整场戏的背景音就是他。
+  // 位置必须落在地板上：讲台只到 x∈[-6,6]、z∈[-18,-13]，
+  // 之前给的是 (-8.6, -11.6) —— 已经出了讲台，他就那样悬在离地半米的地方。
   spawns.push({
-    x: -8.6,
-    z: -11.6,
-    yaw: -0.5,
-    y: PLATEAU_Y + 0.5,
+    x: -8.8,
+    z: -11.2,
+    y: PLATEAU_Y,
+    yaw: -2.45,
     role: 'singer',
     name: '唱歌的',
     seated: true,

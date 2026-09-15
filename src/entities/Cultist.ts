@@ -119,7 +119,9 @@ export class Cultist {
     this.id = `cultist-${cultistCounter++}`;
     const look =
       spawn.look ?? CULTIST_LOOKS[(spawn.lookIndex ?? cultistCounter) % CULTIST_LOOKS.length]!;
-    this.humanoid = factory.make(look, { full: false, scale: spawn.scale ?? 1 });
+    // 全关节版本：礼厅里大半的人都是坐着的，没有膝关节时腿只能整条直着转，
+    // 一坐下就会穿到长凳和地板下面。代价是每人多几个 draw call，值。
+    this.humanoid = factory.make(look, { full: true, scale: spawn.scale ?? 1 });
     if (spawn.cap && mats) addCap(this.humanoid, mats);
     this.height = this.humanoid.height;
     this.role = spawn.role ?? 'follower';

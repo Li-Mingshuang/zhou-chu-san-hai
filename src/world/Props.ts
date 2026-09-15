@@ -270,6 +270,27 @@ export function buildHallProps(ctx: BuildCtx): PropHandles {
   b.cyl(0.14, 0.17, 0.26, M.lacquer, 2.6, stageTop + 0.13, -16.0, 8);
   b.cyl(0.05, 0.05, 0.1, M.muzzle, 2.6, stageTop + 0.3, -16.0, 6);
 
+  // ── 弹唱的人坐的那张凳子 ─────────────────────────────
+  // 凳面高度是从 Humanoid.sit() 反推的：坐姿把胯降到根节点上方 0.526 米，
+  // 所以凳面做到 8.50 就刚好托住他，不会穿模也不会悬空。
+  {
+    const sx = -8.8;
+    const sz = -11.2;
+    const ry = -2.45;
+    b.box(0.46, 0.06, 0.44, M.woodWorn, sx, floor + 0.47, sz, ry);
+    const ca = Math.cos(ry);
+    const sa = Math.sin(ry);
+    for (const [lx, lz] of [
+      [-0.17, -0.16],
+      [0.17, -0.16],
+      [-0.17, 0.16],
+      [0.17, 0.16],
+    ] as Array<[number, number]>) {
+      b.box(0.05, 0.47, 0.05, M.woodDark, sx + lx * ca - lz * sa, floor + 0.235, sz + lx * sa + lz * ca);
+    }
+    b.box(0.4, 0.04, 0.04, M.woodDark, sx, floor + 0.14, sz, ry);
+  }
+
   // ── 功德箱 ───────────────────────────────────────────
   b.box(1.1, 0.72, 0.7, M.lacquerDark, -3.4, floor + 0.36, HALL.z1 - 1.6, 0.12);
   b.box(1.16, 0.08, 0.76, M.lacquer, -3.4, floor + 0.75, HALL.z1 - 1.6, 0.12);

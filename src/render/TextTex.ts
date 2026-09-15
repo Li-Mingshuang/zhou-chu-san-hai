@@ -143,6 +143,40 @@ export function makeTextTexture(text: string, opts: TextTexOpts = {}): CanvasTex
   return tex;
 }
 
+/**
+ * 人物脚下的一团接触阴影。
+ *
+ * 没有阴影的时候，人在漫反射的场景里是"贴"在地上的：脚边没有明暗交代，
+ * 稍微远一点就和地面对比度一起消失——扫地的人只剩一个头和一柄扫帚。
+ * 一张径向渐变的贴图 + 一个朝上的方片就够了，比真做阴影便宜得多。
+ */
+export function makeBlobShadowTexture(size = 64): CanvasTexture {
+  const canvas = document.createElement('canvas');
+  canvas.width = size;
+  canvas.height = size;
+  const g = canvas.getContext('2d');
+  if (g) {
+    const grad = g.createRadialGradient(size / 2, size / 2, 0, size / 2, size / 2, size / 2);
+    grad.addColorStop(0, 'rgba(0,0,0,0.95)');
+    grad.addColorStop(0.45, 'rgba(0,0,0,0.6)');
+    grad.addColorStop(0.75, 'rgba(0,0,0,0.2)');
+    grad.addColorStop(1, 'rgba(0,0,0,0)');
+    g.fillStyle = grad;
+    g.fillRect(0, 0, size, size);
+  } else {
+    const tex = new CanvasTexture(canvas);
+    tex.colorSpace = SRGBColorSpace;
+    return tex;
+  }
+  const tex = new CanvasTexture(canvas);
+  tex.colorSpace = SRGBColorSpace;
+  tex.minFilter = LinearFilter;
+  tex.magFilter = LinearFilter;
+  tex.generateMipmaps = false;
+  tex.needsUpdate = true;
+  return tex;
+}
+
 /** 手写体的便签/信纸：横条纹 + 潦草的字块（不写真实内容，避免可读的伪造文本）。 */
 export function makeLetterTexture(seed = 7): CanvasTexture {
   const rnd = mulberry(seed);

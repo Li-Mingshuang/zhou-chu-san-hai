@@ -12,6 +12,8 @@
     "verify": "node tools/verify.mjs",
     "entry": "node tools/entry.mjs",
     "look": "node tools/look.mjs",
+    "frames": "node tools/frames.mjs",
+    "sketch": "node tools/sketch.mjs",
     "play": "node tools/playthrough.mjs",
     "shots": "node tools/shots.mjs",
     "inspect": "node tools/inspect.mjs"

@@ -1,8 +1,9 @@
-import { BufferGeometry, Group, Matrix4, Mesh, Object3D } from 'three';
+import { BufferGeometry, Group, Matrix4, Mesh, MeshBasicMaterial, Object3D, PlaneGeometry } from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { boxGeo, cylGeo, trs } from '../render/Geo.js';
 import type { MatLib } from '../render/Mats.js';
 import { P } from '../render/Palette.js';
+import { makeBlobShadowTexture } from '../render/TextTex.js';
 
 /**
  * 低多边形人物。
@@ -127,6 +128,9 @@ export class Humanoid {
   readonly armR: Object3D;
   readonly legL: Object3D | null;
   readonly legR: Object3D | null;
+  /** 膝关节（只有全关节版本才有）。 */
+  readonly kneeL: Object3D | null;
+  readonly kneeR: Object3D | null;
   /** 身高（米）。 */
   readonly height: number;
 
@@ -139,6 +143,8 @@ export class Humanoid {
     armR: Object3D,
     legL: Object3D | null,
     legR: Object3D | null,
+    kneeL: Object3D | null,
+    kneeR: Object3D | null,
     height: number,
   ) {
     this.root = root;
@@ -149,6 +155,8 @@ export class Humanoid {
     this.armR = armR;
     this.legL = legL;
     this.legR = legR;
+    this.kneeL = kneeL;
+    this.kneeR = kneeR;
     this.height = height;
   }
 
@@ -165,17 +173,34 @@ export class Humanoid {
       get(this.armR)!,
       get(this.legL),
       get(this.legR),
+      get(this.kneeL),
+      get(this.kneeR),
       this.height,
     );
   }
+
+  // ── 姿态符号约定（改这里之前请先读这段） ──────────────────
+  //
+  // 角色在本地坐标里朝 -Z（脸在 -Z 一侧），肢体自然垂下是 (0,-1,0)。
+  // 绕 X 轴旋转 θ 之后，一条垂下的肢体指向 (0, -cosθ, -sinθ)：
+  //   θ > 0  →  z 分量为负  →  肢体向前（-Z）抬起来
+  //   θ < 0  →  肢体向后（+Z）甩过去
+  //
+  // 所以说"伸手"、"坐着把大腿抬到身前"、"扫地时上身往前俯"、
+  // "头低下去看地"，用的都是**正**角度。
+  // 这套骨架最初把符号全写反了：信徒是把手伸到背后劝你，
+  // 坐着的人两条腿直挺挺穿过长凳和地板，扫地的上身是往后仰的。
 
   /** 走路/站立姿态。ratio = 0 为静止，1 为慢走，1.3 为跑。 */
   pose(phase: number, ratio: number, lean = 0): void {
     const s = Math.sin(phase);
     const r = Math.max(0, Math.min(1.4, ratio));
     if (this.legL && this.legR) {
-      this.legL.rotation.x = s * 0.68 * r;
-      this.legR.rotation.x = -s * 0.68 * r;
+      this.legL.rotation.x = s * 0.66 * r;
+      this.legR.rotation.x = -s * 0.66 * r;
+      // 腿往后甩的时候膝盖弯起来，往前走的时候伸直
+      if (this.kneeL) this.kneeL.rotation.x = -Math.max(0, -s) * 0.95 * r;
+      if (this.kneeR) this.kneeR.rotation.x = -Math.max(0, s) * 0.95 * r;
     }
     this.armL.rotation.x = -s * 0.55 * r;
     this.armR.rotation.x = s * 0.55 * r;
@@ -184,94 +209,111 @@ export class Humanoid {
     this.hips.position.y = HIP_Y + Math.abs(s) * 0.04 * r;
     this.hips.rotation.y = -s * 0.07 * r;
     this.hips.rotation.z = s * 0.03 * r;
-    this.torso.rotation.x = lean + r * 0.15;
-    this.head.rotation.x = -lean * 0.6 - r * 0.1;
+    // lean > 0 = 往前俯（跑起来是这样）
+    this.torso.rotation.x = -lean - r * 0.13;
+    this.head.rotation.x = lean * 0.5 + r * 0.08;
   }
 
-  /** 坐在长凳上。 */
+  /** 坐在长凳上。大腿抬到身前放平，小腿垂下。 */
   sit(): void {
-    this.hips.position.y = HIP_Y * 0.56;
+    this.hips.position.y = HIP_Y * 0.545;
     if (this.legL && this.legR) {
-      this.legL.rotation.x = -1.45;
-      this.legR.rotation.x = -1.45;
+      this.legL.rotation.set(1.42, 0, 0.05);
+      this.legR.rotation.set(1.42, 0, -0.05);
     }
-    this.torso.rotation.x = 0.08;
-    this.armL.rotation.set(-0.9, 0, 0.22);
-    this.armR.rotation.set(-0.9, 0, -0.22);
+    // 大腿放平之后，小腿要往回折 90° 才能垂下
+    if (this.kneeL) this.kneeL.rotation.x = -1.42;
+    if (this.kneeR) this.kneeR.rotation.x = -1.42;
+    this.torso.rotation.set(0.06, 0, 0);
+    // 手放在大腿上
+    this.armL.rotation.set(0.85, 0, 0.24);
+    this.armR.rotation.set(0.85, 0, -0.24);
     this.head.rotation.set(0, 0, 0);
   }
 
-  /** 跪下（"感谢天地"）。 */
+  /** 跪下（"感谢天地"）：膝着地，小腿折到身后。 */
   kneel(): void {
-    this.hips.position.y = HIP_Y * 0.42;
+    this.hips.position.y = HIP_Y * 0.5;
     if (this.legL && this.legR) {
-      this.legL.rotation.x = -2.15;
-      this.legR.rotation.x = -2.15;
+      this.legL.rotation.set(0.16, 0, 0.05);
+      this.legR.rotation.set(0.16, 0, -0.05);
     }
-    this.torso.rotation.x = 0.16;
-    this.armL.rotation.set(-0.28, 0, 0.3);
-    this.armR.rotation.set(-0.28, 0, -0.3);
-    this.head.rotation.set(0.3, 0, 0);
+    if (this.kneeL) this.kneeL.rotation.x = -1.72;
+    if (this.kneeR) this.kneeR.rotation.x = -1.72;
+    this.torso.rotation.set(-0.1, 0, 0);
+    this.armL.rotation.set(0.3, 0, 0.3);
+    this.armR.rotation.set(0.3, 0, -0.3);
+    // 头低下去
+    this.head.rotation.set(-0.3, 0, 0);
   }
 
-  /** 伸手（劝说的姿势）。 */
+  /** 伸手（劝说的姿势）——手朝他面前的人伸出去。 */
   reach(amount: number): void {
     const a = Math.max(0, Math.min(1, amount));
-    this.armL.rotation.x = -1.5 * a;
-    this.armR.rotation.x = -1.4 * a;
-    this.armL.rotation.z = 0.3 * a;
-    this.armR.rotation.z = -0.3 * a;
-    this.torso.rotation.x = 0.1 * a;
+    this.armL.rotation.x = 1.5 * a;
+    this.armR.rotation.x = 1.42 * a;
+    this.armL.rotation.z = 0.26 * a;
+    this.armR.rotation.z = -0.26 * a;
+    if (this.legL) this.legL.rotation.x = 0.12 * a;
+    if (this.legR) this.legR.rotation.x = -0.08 * a;
+    this.torso.rotation.x = -0.13 * a;
   }
 
-  /** 双手举起（投降/瘫坐）。 */
+  /** 双手举过头。 */
   handsUp(amount: number): void {
     const a = Math.max(0, Math.min(1, amount));
-    this.armL.rotation.x = -2.5 * a;
-    this.armR.rotation.x = -2.5 * a;
+    this.armL.rotation.x = 2.5 * a;
+    this.armR.rotation.x = 2.5 * a;
     this.armL.rotation.z = 0.5 * a;
     this.armR.rotation.z = -0.5 * a;
   }
 
-  /** 向后倒下。dir 为倒下的朝向（弧度），amount 0..1。 */
+  /** 倒下。dir 为倒下的朝向（弧度），amount 0..1。中弹是往后倒。 */
   fall(dir: number, amount: number): void {
     const a = Math.max(0, Math.min(1, amount));
     this.root.rotation.y = dir;
-    this.root.rotation.x = -a * (Math.PI / 2) * 0.93;
-    this.armL.rotation.set(-0.5 * a, 0, 0.95 * a);
-    this.armR.rotation.set(0.35 * a, 0, -0.75 * a);
-    this.torso.rotation.x = 0.1 * a;
+    this.root.rotation.x = a * (Math.PI / 2) * 0.93;
+    this.armL.rotation.set(0.55 * a, 0, 0.95 * a);
+    this.armR.rotation.set(-0.4 * a, 0, -0.75 * a);
+    this.torso.rotation.x = -0.12 * a;
+    if (this.kneeL) this.kneeL.rotation.x = -0.35 * a;
+    if (this.kneeR) this.kneeR.rotation.x = -0.2 * a;
   }
 
-  /** 扫地。phase 由外部按时间推进，慢一点更像在磨时间。 */
+  /** 扫地：上身往前俯，双手握着帚柄慢慢左右摆。 */
   sweep(phase: number): void {
     const s = Math.sin(phase);
     this.hips.position.y = HIP_Y;
     this.hips.rotation.set(0, s * 0.12, 0);
-    this.torso.rotation.set(0.34, s * 0.3, s * 0.05);
-    this.head.rotation.set(0.36, -s * 0.1, 0);
-    this.armL.rotation.set(-1.02, 0, 0.24 + s * 0.08);
-    this.armR.rotation.set(-1.16, 0, -0.24 - s * 0.08);
+    // 上身往前俯（负角度），头低下去看地
+    this.torso.rotation.set(-0.34, s * 0.3, s * 0.05);
+    this.head.rotation.set(-0.34, -s * 0.1, 0);
+    this.armL.rotation.set(1.02, 0, 0.24 + s * 0.08);
+    this.armR.rotation.set(1.16, 0, -0.24 - s * 0.08);
     if (this.legL && this.legR) {
-      this.legL.rotation.set(-0.12, 0, 0.06);
-      this.legR.rotation.set(0.1, 0, -0.06);
+      this.legL.rotation.set(0.14, 0, 0.06);
+      this.legR.rotation.set(-0.1, 0, -0.06);
     }
+    if (this.kneeL) this.kneeL.rotation.x = -0.1;
+    if (this.kneeR) this.kneeR.rotation.x = -0.16;
   }
 
-  /** 弹吉他唱歌：左手按住，右手扫弦，头随节拍点。 */
+  /** 弹吉他唱歌：左手按弦（前伸偏左），右手扫弦，头随节拍点。 */
   strum(phase: number): void {
     const s = Math.sin(phase);
     const fast = Math.sin(phase * 3.1);
-    this.hips.position.y = HIP_Y * 0.56;
+    this.hips.position.y = HIP_Y * 0.545;
     this.hips.rotation.set(0, s * 0.05, 0);
-    this.torso.rotation.set(0.12 + s * 0.04, s * 0.07, 0);
-    this.head.rotation.set(-0.1 + fast * 0.07, -s * 0.12, 0);
-    this.armL.rotation.set(-1.32 + s * 0.06, 0, 0.3);
-    this.armR.rotation.set(-0.92 + fast * 0.42, 0, -0.32 - fast * 0.08);
+    this.torso.rotation.set(-0.12 - s * 0.04, s * 0.07, 0);
+    this.head.rotation.set(0.06 + fast * 0.07, -s * 0.12, 0);
+    this.armL.rotation.set(1.28 + s * 0.06, 0, 0.34);
+    this.armR.rotation.set(1.0 + fast * 0.34, 0, -0.36 - fast * 0.08);
     if (this.legL && this.legR) {
-      this.legL.rotation.set(-1.4, 0, 0.1);
-      this.legR.rotation.set(-1.4, 0, -0.1);
+      this.legL.rotation.set(1.38, 0, 0.1);
+      this.legR.rotation.set(1.38, 0, -0.1);
     }
+    if (this.kneeL) this.kneeL.rotation.x = -1.4;
+    if (this.kneeR) this.kneeR.rotation.x = -1.4;
   }
 
   /** 把一件道具挂到某个关节上（扫帚、吉他）。 */
@@ -296,6 +338,8 @@ export class Humanoid {
       this.legL.rotation.set(0, 0, 0);
       this.legR.rotation.set(0, 0, 0);
     }
+    if (this.kneeL) this.kneeL.rotation.set(0, 0, 0);
+    if (this.kneeR) this.kneeR.rotation.set(0, 0, 0);
   }
 
   setVisible(v: boolean): void {
@@ -363,13 +407,41 @@ function construct(look: HumanoidLook, mats: MatLib, opts: HumanoidOptions): Hum
 
   let legL: Group | null = null;
   let legR: Group | null = null;
+  let kneeL: Group | null = null;
+  let kneeR: Group | null = null;
   if (full) {
-    legL = mergePieces(mats, legPieces(), 'legL');
-    legL.position.set(-0.105, 0, 0);
-    hips.add(legL);
-    legR = mergePieces(mats, legPieces(), 'legR');
-    legR.position.set(0.105, 0, 0);
-    hips.add(legR);
+    // 全关节版：大腿与小褪分成两段，中间一个膝关节。
+    // 只有一个髋关节是不够的——坐下的时候腿只能整条转，脚会穿到地板下面去。
+    for (const side of [-1, 1] as const) {
+      const leg = new Group();
+      leg.name = side < 0 ? 'legL' : 'legR';
+      leg.position.set(0.105 * side, 0, 0);
+      leg.add(
+        mergePieces(mats, [{ geo: boxGeo(0.14, 0.46, 0.15), key: kPants, m: trs(0, -0.23, 0) }], `${leg.name}-thigh`),
+      );
+      const knee = new Group();
+      knee.name = side < 0 ? 'kneeL' : 'kneeR';
+      knee.position.set(0, -0.46, 0);
+      knee.add(
+        mergePieces(
+          mats,
+          [
+            { geo: boxGeo(0.125, 0.4, 0.135), key: kPants, m: trs(0, -0.2, 0) },
+            { geo: boxGeo(0.13, 0.085, 0.25), key: kShoe, m: trs(0, -0.44, 0.045) },
+          ],
+          `${knee.name}-shin`,
+        ),
+      );
+      leg.add(knee);
+      hips.add(leg);
+      if (side < 0) {
+        legL = leg;
+        kneeL = knee;
+      } else {
+        legR = leg;
+        kneeR = knee;
+      }
+    }
   } else {
     const offset = (dx: number, p: Piece): Piece => ({
       geo: p.geo,
@@ -402,7 +474,28 @@ function construct(look: HumanoidLook, mats: MatLib, opts: HumanoidOptions): Hum
   torso.add(armR);
 
   root.scale.setScalar(scale);
-  return new Humanoid(root, hips, torso, head, armL, armR, legL, legR, 1.78 * scale);
+
+  // ── 脚下一团接触阴影 ─────────────────────────────────
+  // 没有它的时候，人在漫反射的场景里是"贴"在地上的：脚边没有明暗交代，
+  // 稍微远一点就和地面对比度一起消失（扫地的人只剩一个头和一柄扫帚）。
+  // 一张径向渐变贴图 + 一个朝上的方片，比真做阴影便宜得多。
+  const shadowTex = makeBlobShadowTexture();
+  const shadowMat = new MeshBasicMaterial({
+    map: shadowTex,
+    transparent: true,
+    opacity: 0.55,
+    depthWrite: false,
+    color: 0x0b0a08,
+  });
+  const shadowGeo = new PlaneGeometry(1.05, 1.05);
+  shadowGeo.rotateX(-Math.PI / 2);
+  const shadow = new Mesh(shadowGeo, shadowMat);
+  shadow.name = 'contact-shadow';
+  shadow.position.y = 0.016;
+  shadow.renderOrder = -1;
+  root.add(shadow);
+
+  return new Humanoid(root, hips, torso, head, armL, armR, legL, legR, kneeL, kneeR, 1.78 * scale);
 }
 
 /**

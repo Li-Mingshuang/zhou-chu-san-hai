@@ -29,35 +29,36 @@ export function makeBroom(mats: MatLib): Group {
   const g = new Group();
   g.name = 'broom';
 
-  // 柄：从握点往 -Y 伸出去
+  // 柄：从握点往 -Y 伸出去。
+  // 长度是按"站在地上、手握在腰高"反推的：手约在离地 1.0 米，
+  // 柄前倾约 55°，1.0 米的柄加帚头正好让帚毛落在脚前的地面上。
+  // 之前给了 1.46 米，加上扫地的姿势又把上身压下去，帚头整个埋进地里半米。
   g.add(
     merged(mats, M.wood, [
-      { geo: cylGeo(0.021, 0.024, 1.46, 5), m: trs(0, -0.73, 0) },
+      { geo: cylGeo(0.021, 0.024, 1.0, 5), m: trs(0, -0.5, 0) },
     ]),
   );
   // 绑扎处
   g.add(
     merged(mats, M.incense, [
-      { geo: cylGeo(0.045, 0.05, 0.12, 5), m: trs(0, -1.42, 0) },
+      { geo: cylGeo(0.045, 0.05, 0.12, 5), m: trs(0, -0.97, 0) },
     ]),
   );
   // 帚头：中间一撮 + 两侧散开
-  const straw: Piece[] = [
-    { geo: boxGeo(0.3, 0.05, 0.16), m: trs(0, -1.47, 0.02) },
-  ];
+  const straw: Piece[] = [{ geo: boxGeo(0.3, 0.05, 0.16), m: trs(0, -1.02, 0.02) }];
   for (let i = 0; i < 13; i++) {
     const x = -0.16 + i * 0.027;
     const spread = 1 + Math.abs(x) * 3;
     straw.push({
-      geo: boxGeo(0.022, 0.26 * spread, 0.022),
-      m: trs(x * spread, -1.6, 0.02 + i * 0.004),
+      geo: boxGeo(0.022, 0.2 * spread, 0.022),
+      m: trs(x * spread, -1.12, 0.02 + i * 0.004),
     });
   }
   g.add(merged(mats, M.vegDry, straw));
 
-  // 挂在躯干前下方，向前倾，帚头贴地
-  g.position.set(0.16, -0.02, 0.3);
-  g.rotation.set(-0.62, 0.12, 0.06);
+  // 挂在躯干前下方，向前倾约 55°，帚头落在脚前
+  g.position.set(0.16, -0.02, 0.26);
+  g.rotation.set(-0.96, 0.12, 0.06);
   return g;
 }
 

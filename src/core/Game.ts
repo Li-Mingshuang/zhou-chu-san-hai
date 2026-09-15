@@ -556,6 +556,8 @@ export class Game implements GameCtx {
     if (!this.avatar) {
       this.avatar = this.humanoids.make(PLAYER_LOOK, { full: true });
       this.avatar.setVisible(false);
+      // 起个认得出的名字：信徒的根节点也叫 'humanoid'，按名字找会找错人
+      this.avatar.root.name = 'player-avatar';
       this.world.add(this.avatar.root);
     }
     this.avatar.setVisible(true);
