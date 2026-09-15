@@ -135,17 +135,17 @@ export const LIGHT_PRESETS = {
     exposure: 1.16,
     saturation: 1,
   },
-  /** 山径：黄昏，青绿。 */
+  /** 山径：黄昏，青绿。逃跑段要看清人与路，所以整体比"真实黄昏"亮一档。 */
   path: {
-    hemiSky: 0x7d8a86,
-    hemiGround: 0x3d4433,
-    hemiIntensity: 1.06,
-    sunColor: 0xe0a86e,
-    sunIntensity: 0.78,
+    hemiSky: 0x9aa6a0,
+    hemiGround: 0x4d5641,
+    hemiIntensity: 1.55,
+    sunColor: 0xe8b478,
+    sunIntensity: 1.05,
     sunDir: [0.7, 0.4, 0.5],
-    fog: 0x6d7570,
-    fogDensity: 0.019,
-    exposure: 1.1,
+    fog: 0x7d8580,
+    fogDensity: 0.018,
+    exposure: 1.16,
     saturation: 1,
   },
   /** 海边：过曝灰白。 */

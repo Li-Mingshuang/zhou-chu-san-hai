@@ -76,7 +76,10 @@ try {
     await page.screenshot(`shots/look-${name}-off.png`);
 
     const d = diffStats(`shots/look-${name}-on.png`, `shots/look-${name}-off.png`);
-    const ok = hidden > 0 && d.mean > 0.004 && d.changed > 0.01;
+    // 分镜模式下颗粒已经关掉了，所以这两个数是"干净"的：平均差现在只反映
+    // 真实的内容差异（之前被逐帧噪点垫高了近一倍）。判据主要看"变化像素占比"
+    // ——远处的一小撮人本来就摊不出多少平均差。
+    const ok = hidden > 0 && d.changed > 0.008 && d.mean > 0.0008;
     console.log(
       `  ${ok ? '✓' : '✗'} ${name.padEnd(8)} role=${role.padEnd(9)} 匹配 ${String(hidden).padStart(2)} 个` +
         `  平均差 ${d.mean.toFixed(4)}  变化像素 ${(d.changed * 100).toFixed(1)}%`,

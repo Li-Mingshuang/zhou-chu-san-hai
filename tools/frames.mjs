@@ -102,6 +102,32 @@ const FRAMES = [
     settle: 40,
   },
   {
+    name: 'escape-live',
+    beat: 'escape',
+    targetPlayer: true,
+    // live: 不摆机位，让导演自己的俯视跟随镜头收敛出来——
+    // 这才是玩家真正看到的构图
+    live: true,
+    offset: [0, 0, 0],
+    eye: 0.9,
+    fov: 52,
+    setup: `const g = window.__GAME__;
+      g.player.teleport(0, 6.2, 40, Math.PI);
+      g.player.facing = Math.PI;
+      g.player.control = 'topdown';
+      g.player.velocity.set(0, 0, 5.2);
+      // shot 模式默认停在 cinematic（分镜摆拍）。这里必须真的切进俯视跟随，
+      // 否则 director.update() 什么都不算，镜头一直停在摆拍的位置上。
+      g.director.setMode('topdown', 0, g);
+      for (let i = 0; i < 150; i++) g.director.update(1 / 60, g);
+      for (let i = 0; i < 60; i++) g.updateAvatar(1 / 60);`,
+    hide: `const g = window.__GAME__;
+      g.updateAvatar = () => {};
+      const a = g.world.getObjectByName('player-avatar');
+      if (a) a.visible = false;`,
+    settle: 0,
+  },
+  {
     name: 'avatar',
     beat: 'escape',
     targetPlayer: true,
@@ -256,9 +282,11 @@ async function captureOne(f) {
     look = [t.x, t.y + f.eye, t.z];
   }
 
-  await page.eval(
-    `window.__GAME__.director.setPose([${cam.join(',')}], [${look.join(',')}], ${f.fov})`,
-  );
+  if (!f.live) {
+    await page.eval(
+      `window.__GAME__.director.setPose([${cam.join(',')}], [${look.join(',')}], ${f.fov})`,
+    );
+  }
   await sleep(500);
   await page.screenshot(`shots/frame-${f.name}-on.png`);
 

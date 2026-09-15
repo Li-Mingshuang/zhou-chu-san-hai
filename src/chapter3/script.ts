@@ -601,8 +601,15 @@ function beatEscape(): Beat {
       g.player.yaw = Math.PI;
       g.director.topdown.forwardYaw = Math.PI;
       g.director.setMode('topdown', 0.85, g);
-      g.director.topdown.height = 15.5;
-      g.director.topdown.lead = 4.5;
+      // 镜头参数是量出来的，不是猜的：15.5 米时一个 1.78 米的人只占画面
+      // 5.9% 高（33 像素），俯视跑步就变成"看地图"。9 米 + 55° 俯角
+      // 把他放大到约 15%，同时还能看见前方十来米的路。
+      // 穿墙由 CameraDirector.avoidWalls 处理，不然刚出礼厅那一段镜头
+      // 会直接从屋顶穿出去。
+      g.director.topdown.height = 9;
+      g.director.topdown.pitch = 0.98;
+      g.director.topdown.lead = 5;
+      g.director.topdown.fov = 48;
       g.setLightPreset('path');
       g.audio.setAmbience('wind', 2);
       g.audio.setSpace('outdoor');
@@ -627,11 +634,14 @@ function beatEscape(): Beat {
       g.player.teleport(0, PLATEAU_Y - 3, 34, 0);
       g.player.forcedRun = true;
       g.player.control = 'topdown';
+      g.director.topdown.forwardYaw = Math.PI;
+      g.director.topdown.height = 9;
+      g.director.topdown.pitch = 0.98;
+      g.director.topdown.lead = 5;
+      g.director.topdown.fov = 48;
       g.director.setMode('topdown', 0, g);
-      g.director.topdown.height = 15.5;
       // 让跟随状态直接收敛到目标，避免第一帧还在天上
-      for (let i = 0; i < 90; i++) g.director.update(1 / 60, g);
-      g.director.setPose([0, PLATEAU_Y + 9.5, 40], [0, PLATEAU_Y - 3, 32], 52);
+      for (let i = 0; i < 120; i++) g.director.update(1 / 60, g);
     },
   };
 }

@@ -337,6 +337,12 @@ export class CameraDirector {
     this.tdLook.y = damp(this.tdLook.y, this.tmpB.y, o.lag, dt);
     this.tdLook.z = damp(this.tdLook.z, this.tmpB.z, o.lag * 1.3, dt);
 
+    // ── 镜头避障 ────────────────────────────────────────
+    // 逃跑是从礼厅门口开始的，而镜头在玩家背后——不处理的话它会直接从
+    // 屋顶穿出去，玩家看到一片天花板。做法是常规的：从注视点朝理想机位
+    // 打一条射线，撞到东西就把镜头拉到撞点前面。
+    this.avoidWalls(game);
+
     this.targetPos.copy(this.tdPos);
     this.lookQuat(this.targetPos, this.tdLook, this.targetQuat);
 
@@ -356,6 +362,28 @@ export class CameraDirector {
     while (d < -Math.PI) d += Math.PI * 2;
     this.lastYaw = yaw;
     return d * 12;
+  }
+
+  /**
+   * 把俯视镜头从墙里拉出来，并且不允许它钻到地面以下。
+   * 只处理"注视点 → 机位"这一条射线：够用了，而且不会让镜头乱抖。
+   */
+  private avoidWalls(game: GameCtx): void {
+    const from = this.tmpA.set(this.tdLook.x, this.tdLook.y, this.tdLook.z);
+    const to = this.tmpB.copy(this.tdPos);
+    const delta = this.tmpC.copy(to).sub(from);
+    const dist = delta.length();
+    if (dist > 0.01) {
+      delta.multiplyScalar(1 / dist);
+      const hit = game.level.ray(from, delta, dist, { sight: true });
+      if (hit && hit.t < dist - 0.15) {
+        const pull = Math.max(1.8, hit.t - 0.35);
+        this.tdPos.copy(from).addScaledVector(delta, pull);
+      }
+    }
+    // 贴着山坡跑的时候，镜头不能低于地面
+    const floor = game.level.terrain(this.tdPos.x, this.tdPos.z) + 1.6;
+    if (this.tdPos.y < floor) this.tdPos.y = floor;
   }
 
   // ── 横版侧视 ─────────────────────────────────────────────

@@ -192,6 +192,9 @@ export class Game implements GameCtx {
   private enterShotMode(): void {
     this.frozen = true;
     this.input.enabled = false;
+    // 分镜模式要的是"可复现的一帧"。颗粒是逐帧变化的噪声，留着它，
+    // 两张图的差分里就全是噪点——判据会被淹掉，等于没法比。
+    this.renderer.setLook({ grain: 0 });
     this.ui.clearOverlay();
     this.ui.hideOverlay();
     this.ui.setHudVisible(true);
